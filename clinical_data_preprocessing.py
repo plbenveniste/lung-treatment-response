@@ -119,7 +119,7 @@ def main():
     data['Reponse'] = data['Reponse'].apply(pd.to_numeric)
 
     ## We save the pre-processed dataset in the folder
-    output_file = os.path.join(output_folder, "preprocessed_csv.csv")
+    output_file = os.path.join(output_folder, "clinical_data_preprocessed.csv")
     data.to_csv(output_file, index=False)
 
     return None
