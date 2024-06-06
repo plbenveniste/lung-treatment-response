@@ -55,7 +55,7 @@ def main():
     for i, row in clini_data.iterrows():
         # Find the corresponding line in the radiomics data using .loc
         found = False
-        patient_id = row['num\n_patient']
+        patient_id = row['num_patient']
         matching_radio_row = None
         if 'H042' in patient_id:
             patient_id = patient_id.replace('H042','H042_LSD')
