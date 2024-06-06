@@ -63,7 +63,7 @@ def main():
 
     # Renaming of the columns (removing \n)
     change_columns = {
-        "num\n_patient": "'num_patient'",
+        "num\n_patient": "num_patient",
         "score\n_charlson": "score_charlson", 
         "tabac\n_PA": "tabac_PA",
         "tabac\n_sevre": "tabac_sevre",
