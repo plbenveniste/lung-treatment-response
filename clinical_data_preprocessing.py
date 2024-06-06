@@ -47,7 +47,7 @@ def main():
     ## sex, age, BMI, Charlson's score, OMS, tabac, tabac_PA, tabac_sevre, histo, T, centrale, dose_tot, etalement, vol_GTV, vol_PTV, vol_ITV, couv-PTV, BED_10
     # The outputs are the following:
     ## deces, date de mort (DDD), cause_deces, toutes les dates de rechute, reponse (le nodule a repondu)
-    feature_columns = ['sexe', 'age', 'BMI', 'score\n_charlson', 'OMS', 'tabac', 'tabac\n_PA', 'tabac\n_sevre', 
+    feature_columns = ['num\n_patient', 'sexe', 'age', 'BMI', 'score\n_charlson', 'OMS', 'tabac', 'tabac\n_PA', 'tabac\n_sevre', 
                 'histo', 'T', 'centrale', 'dose\n_tot', 'etalement', 'vol\n_GTV', 'vol\n_PTV', 'vol\n_ITV', 'couv\n_PTV', 'BED\n_10']
     outputs_columnns = ['DC', 'DDD', 'cause_DC', 'Date_R\n_PTV', 'Date_R\n_homo','Date_R\n_med','Date_R\n_contro','Date_R\n_horspoum', 'Reponse']
     all_columns = feature_columns + outputs_columnns
