@@ -9,7 +9,7 @@ Returns:
     None
 
 Example:
-    python csv_data_preprocessing.py --input /path/to/csv_file.csv --output /output/folder/
+    python clinical_data_preprocessing.py --input /path/to/csv_file.csv --output /output/folder/
 
 Author: Pierre-Louis Benveniste
 """
