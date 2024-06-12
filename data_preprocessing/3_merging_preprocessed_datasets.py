@@ -10,7 +10,7 @@ Returns:
     None
 
 Example run:
-    python mergin_preprocessed_datasets.py --clinical-data /path/to/clinical.csv --radiomics-data /path/to/radiomics.csv
+    python mergin_preprocessed_datasets.py --clini /path/to/clinical.csv --radio /path/to/radiomics.csv --output /path/to/output_folder
 
 Author: Pierre-Louis Benveniste
 """
@@ -72,6 +72,9 @@ def main():
 
         if not found:
             print("Problem with patient {}".format(patient_id))
+    
+    # Remove some useless columns
+    merged_data = merged_data.drop(columns=['Unnamed: 0', 'subject_nodule', 'subject_id', 'nodule', 'file_name', 'num_patient'])
 
     # We save the merged dataset
     output_folder = args.output
