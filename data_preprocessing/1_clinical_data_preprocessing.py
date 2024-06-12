@@ -49,7 +49,7 @@ def main():
     ## deces, date de mort (DDD), cause_deces, toutes les dates de rechute, reponse (le nodule a repondu)
     feature_columns = ['num\n_patient', 'sexe', 'age', 'BMI', 'score\n_charlson', 'OMS', 'tabac', 'tabac\n_PA', 'tabac\n_sevre', 
                 'histo', 'T', 'centrale', 'dose\n_tot', 'etalement', 'vol\n_GTV', 'vol\n_PTV', 'vol\n_ITV', 'couv\n_PTV', 'BED\n_10']
-    outputs_columnns = ['DC', 'DDD', 'cause_DC', 'Date_R\n_PTV', 'Date_R\n_homo','Date_R\n_med','Date_R\n_contro','Date_R\n_horspoum', 'Reponse']
+    outputs_columnns = ['DC', 'DDD', 'cause_DC', 'Date_R\n_PTV', 'Date_R\n_homo','Date_R\n_med','Date_R\n_contro','Date_R\n_horspoum', 'Reponse', 'date\n_fin']
     all_columns = feature_columns + outputs_columnns
 
     # We select the data of interest
@@ -78,6 +78,7 @@ def main():
         "Date_R\n_med": "Date_R_med",
         "Date_R\n_contro": "Date_R_contro",
         "Date_R\n_horspoum": "Date_R_horspoum",
+        "date\n_fin": "date_fin"
     }
     data = data.rename(columns=change_columns)
 
@@ -137,6 +138,34 @@ def main():
     data['Date_R_horspoum'] = data['Date_R_horspoum'].apply(pd.to_datetime, dayfirst=True)
     ## For Reponse we check thay all take numeric values
     data['Reponse'] = data['Reponse'].apply(pd.to_numeric)
+    ## For 'date_fin' we check that it is a date
+    data['date_fin'] = data['date_fin'].apply(pd.to_datetime, dayfirst=True)
+
+    # We create a column which is the time between end of treatment and death
+    data['delai_fin_DC'] = data['DDD'] - data['date_fin']
+    # Convert to days
+    data['delai_fin_DC'] = data['delai_fin_DC'].dt.days
+    # When delai_fin_DC is negative, we replace by 0
+    data['delai_fin_DC'] = data['delai_fin_DC'].apply(lambda x: 0 if x < 0 else x)
+    # We create a column which is the time between end of treatment and rechutes
+    data['delai_fin_rechutePTV'] = data['DDD'] - data['Date_R_PTV']
+    data['delai_fin_rechutePTV'] = data['delai_fin_rechutePTV'].dt.days
+    data['delai_fin_rechutePTV'] = data['delai_fin_rechutePTV'].apply(lambda x: 0 if x < 0 else x)
+    data['delai_fin_rechuteHomo'] = data['DDD'] - data['Date_R_homo']
+    data['delai_fin_rechuteHomo'] = data['delai_fin_rechuteHomo'].dt.days
+    data['delai_fin_rechuteHomo'] = data['delai_fin_rechuteHomo'].apply(lambda x: 0 if x < 0 else x)
+    data['delai_fin_rechuteMed'] = data['DDD'] - data['Date_R_med']
+    data['delai_fin_rechuteMed'] = data['delai_fin_rechuteMed'].dt.days
+    data['delai_fin_rechuteMed'] = data['delai_fin_rechuteMed'].apply(lambda x: 0 if x < 0 else x)
+    data['delai_fin_rechuteContro'] = data['DDD'] - data['Date_R_contro']
+    data['delai_fin_rechuteContro'] = data['delai_fin_rechuteContro'].dt.days
+    data['delai_fin_rechuteContro'] = data['delai_fin_rechuteContro'].apply(lambda x: 0 if x < 0 else x)
+    data['delai_fin_rechuteHorspoum'] = data['DDD'] - data['Date_R_horspoum']
+    data['delai_fin_rechuteHorspoum'] = data['delai_fin_rechuteHorspoum'].dt.days
+    data['delai_fin_rechuteHorspoum'] = data['delai_fin_rechuteHorspoum'].apply(lambda x: 0 if x < 0 else x)
+
+    # We remove date_fin
+    data = data.drop(columns=['date_fin'])
 
     ## We save the pre-processed dataset in the folder
     output_file = os.path.join(output_folder, "clinical_data_preprocessed.csv")
