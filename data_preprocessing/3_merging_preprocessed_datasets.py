@@ -76,6 +76,9 @@ def main():
     # Remove some useless columns
     merged_data = merged_data.drop(columns=['Unnamed: 0', 'subject_nodule', 'subject_id', 'nodule', 'file_name', 'num_patient'])
 
+    # For each column name, we remove the part after the first '('
+    merged_data.columns = [col.split('(')[0] for col in merged_data.columns]
+
     # We save the merged dataset
     output_folder = args.output
     merged_data.to_csv(os.path.join(output_folder, 'merged_data.csv'), index=False)
