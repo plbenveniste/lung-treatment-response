@@ -60,6 +60,8 @@ def main():
     x = data.drop(columns=['DC', 'DDD', 'cause_DC', 'Date_R_PTV', 'Date_R_homo', 'Date_R_med', 'Date_R_contro', 'Date_R_horspoum', 'Reponse', 'rechute_PTV', 'rechute_homo',
                            'rechute_med', 'rechute_contro', 'rechute_horspoum', 'delai_fin_DC', 'delai_fin_rechutePTV', 'delai_fin_rechuteHomo','delai_fin_rechuteMed',
                            'delai_fin_rechuteContro', 'delai_fin_rechuteHorspoum'])
+    # Remove also useless columns:
+    x = x.drop(columns=['subject_nodule', 'subject_id', 'nodule'])
     
     # In this case, because we are only interested in the prediction of relapse in the PTV (Planning Target Volume) survival, we extract only the 'rechute_PTV'
     y = y[['rechute_PTV']]    
