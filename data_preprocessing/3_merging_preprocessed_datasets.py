@@ -74,7 +74,7 @@ def main():
             print("Problem with patient {}".format(patient_id))
     
     # Remove some useless columns
-    merged_data = merged_data.drop(columns=['Unnamed: 0', 'subject_nodule', 'subject_id', 'nodule', 'file_name', 'num_patient'])
+    merged_data = merged_data.drop(columns=['Unnamed: 0', 'file_name', 'num_patient'])
 
     # For each column name, we remove the part after the first '('
     merged_data.columns = [col.split('(')[0] for col in merged_data.columns]
