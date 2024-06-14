@@ -148,19 +148,19 @@ def main():
     # When delai_fin_DC is negative, we replace by 0
     data['delai_fin_DC'] = data['delai_fin_DC'].apply(lambda x: 0 if x < 0 else x)
     # We create a column which is the time between end of treatment and rechutes
-    data['delai_fin_rechutePTV'] = data['DDD'] - data['Date_R_PTV']
+    data['delai_fin_rechutePTV'] = data['Date_R_PTV'] - data['date_fin']
     data['delai_fin_rechutePTV'] = data['delai_fin_rechutePTV'].dt.days
     data['delai_fin_rechutePTV'] = data['delai_fin_rechutePTV'].apply(lambda x: 0 if x < 0 else x)
-    data['delai_fin_rechuteHomo'] = data['DDD'] - data['Date_R_homo']
+    data['delai_fin_rechuteHomo'] = data['Date_R_homo'] - data['date_fin']
     data['delai_fin_rechuteHomo'] = data['delai_fin_rechuteHomo'].dt.days
     data['delai_fin_rechuteHomo'] = data['delai_fin_rechuteHomo'].apply(lambda x: 0 if x < 0 else x)
-    data['delai_fin_rechuteMed'] = data['DDD'] - data['Date_R_med']
+    data['delai_fin_rechuteMed'] = data['Date_R_med'] - data['date_fin']
     data['delai_fin_rechuteMed'] = data['delai_fin_rechuteMed'].dt.days
     data['delai_fin_rechuteMed'] = data['delai_fin_rechuteMed'].apply(lambda x: 0 if x < 0 else x)
-    data['delai_fin_rechuteContro'] = data['DDD'] - data['Date_R_contro']
+    data['delai_fin_rechuteContro'] = data['Date_R_contro'] - data['date_fin']
     data['delai_fin_rechuteContro'] = data['delai_fin_rechuteContro'].dt.days
     data['delai_fin_rechuteContro'] = data['delai_fin_rechuteContro'].apply(lambda x: 0 if x < 0 else x)
-    data['delai_fin_rechuteHorspoum'] = data['DDD'] - data['Date_R_horspoum']
+    data['delai_fin_rechuteHorspoum'] = data['Date_R_horspoum'] - data['date_fin']
     data['delai_fin_rechuteHorspoum'] = data['delai_fin_rechuteHorspoum'].dt.days
     data['delai_fin_rechuteHorspoum'] = data['delai_fin_rechuteHorspoum'].apply(lambda x: 0 if x < 0 else x)
 
