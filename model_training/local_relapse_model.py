@@ -112,13 +112,6 @@ def main():
     # Save the model
     pickle.dump(model, open(os.path.join(output_folder, 'local_relapse_model'), 'wb'))
 
-    #############################################
-    #############################################
-    # Let's inspect the data:
-    print("Number of subjects which had a local relapse date", data['delai_fin_rechutePTV'].unique().shape[0]-1)
-    # Moving on because it doesn't make sense to look into adding a deadline since only 7 out of 24 have a local relapse date
-    print("Moving on because it doesn't make sense to look into adding a deadline since only 7 out of 24 have a local relapse date")
-
     return None
 
 
