@@ -62,172 +62,150 @@ def main():
     # We average the columns for the same patients across the different nodules
     data_grouped = data.groupby('subject_id').mean().reset_index()
 
-    # print(data['subject_id'].unique())
+    ## The code commented below was written to see if there were any incoherence in the input data
+    # selected_columns = [
+    #     'sexe',
+    #     'age',
+    #     'BMI',
+    #     'score_charlson',
+    #     'OMS',
+    #     'tabac',
+    #     'tabac_PA',
+    #     'tabac_sevre',
+    #     'DC',
+    # ]
 
-    selected_columns = [
-        'sexe',
-        'age',
-        'BMI',
-        'score_charlson',
-        'OMS',
-        'tabac',
-        'tabac_PA',
-        'tabac_sevre',
-        'histo',
-        'centrale',
-        'dose_tot',
-        'etalement',
-        'BED_10',
-        'DC',
-        'delai_fin_DC'
-    ]
+    # column_problems = []
 
-    column_problems = []
+    # for patient in data['subject_id'].unique():
+    #     data_patient = data[data['subject_id']==patient]
+    #     for column in selected_columns:
+    #         if len(data_patient[column].unique())!=1:
+    #             column_problems.append(column)
+    #             print(patient)
+    #             print(column)
+    #             # print(data_patient[column].unique())
+    #             print("\n")
 
-    for patient in data['subject_id'].unique():
-        data_patient = data[data['subject_id']==patient]
-        for column in selected_columns:
-            if len(data_patient[column].unique())!=1:
-                column_problems.append(column)
-                print(patient)
-                print(column)
-                # print(data_patient[column].unique())
-                print("\n")
+
+    # Split into features and target
+    y = data_grouped[['DC', 'delai_fin_DC']]
+    x = data_grouped.drop(columns=['DC', 'delai_fin_DC', 'subject_id'])
     
-    print(list(set(column_problems)))
+    # In this case, because we are only interested in the prediction of survival, we extract only the 'DC'
+    y = y[['DC']]
+    # We replace all nan values by 0 in 'DC'
+    y.fillna(0, inplace=True)
 
+    # Describe x and y
+    print('Feature data shape:', x.shape)
+    print('Target data shape:', y.shape)
+    print("Number of subjects which died:", y[y['DC']==1].shape[0])
 
+    # Split the data into training and testing sets
+    x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=0.2, random_state=1)
+    print("\nNumber of subject for training:", x_train.shape[0])
+    print("Number of subject for testing:", x_test.shape[0])
+    print("\n")
 
+    # Plot the distribution of 'delai_fin_DC'
+    data['delai_fin_DC'].hist()
+    plt.title('Distribution of survival time between end of treatment and\n death (in days) for those that died')
+    plt.xlabel('Survival time')
+    plt.ylabel('Number of subjects')
+    plt.show()
 
-    # print(data['subject_id'].unique())
-    # for subject_id in data['subject_id'].unique():
-    #     subject_data = data[data['subject_id'] == subject_id]
-    #     print(subject_data)
-    #     break
+    # Initialise the model
+    model = XGBClassifier(seed=42)
+    model.fit(x_train, y_train)
 
+    # Performance on the training set
+    y_test_pred = model.predict(x_test)
+    y_test_proba = model.predict_proba(x_test)[:, 1]
 
-    # # Split into features and target
-    # y = data[['DC', 'DDD', 'cause_DC', 'Date_R_PTV', 'Date_R_homo', 'Date_R_med', 'Date_R_contro', 'Date_R_horspoum', 'Reponse', 'rechute_PTV', 'rechute_homo',
-    #           'rechute_med', 'rechute_contro', 'rechute_horspoum', 'delai_fin_DC', 'delai_fin_rechutePTV', 'delai_fin_rechuteHomo','delai_fin_rechuteMed',
-    #           'delai_fin_rechuteContro', 'delai_fin_rechuteHorspoum']]
-    # x = data.drop(columns=['DC', 'DDD', 'cause_DC', 'Date_R_PTV', 'Date_R_homo', 'Date_R_med', 'Date_R_contro', 'Date_R_horspoum', 'Reponse', 'rechute_PTV', 'rechute_homo',
-    #                        'rechute_med', 'rechute_contro', 'rechute_horspoum', 'delai_fin_DC', 'delai_fin_rechutePTV', 'delai_fin_rechuteHomo','delai_fin_rechuteMed',
-    #                        'delai_fin_rechuteContro', 'delai_fin_rechuteHorspoum'])
-    
-    # # In this case, because we are only interested in the prediction of survival, we extract only the 'DC'
-    # y = y[['DC']]
-    # # We replace all nan values by 0 in 'DC'
-    # y.fillna(0, inplace=True)
+    # Compute ROC-AUC, accuracy score, Brier score and PR-AUC score
+    print("Model performance without any occurence deadline")
+    print("ROC AUC Score: ", roc_auc_score(y_test, y_test_proba))
+    print("Brier score:", brier_score_loss(y_test, y_test_proba))
+    print("Average precision:", precision_score(y_test, y_test_pred))
+    print("Average Recall:", recall_score(y_test, y_test_pred))
+    print("Accuracy Score: ",accuracy_score(y_test, y_test_pred))
+    precision_test, recall_test, _ = precision_recall_curve(y_test, y_test_pred)
+    print("AUC-PR score:", auc(recall_test, precision_test))
+    print("\n")
 
-    # # Describe x and y
-    # print('Feature data shape:', x.shape)
-    # print('Target data shape:', y.shape)
-    # print("Number of subjects which died", y[y['DC']==1].shape[0])
+    # Save the model
+    pickle.dump(model, open(os.path.join(output_folder, 'survival_model'), 'wb'))
 
-    # # Split the data into training and testing sets
-    # x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=0.2, random_state=0)
-    # print("\nNumber of subject for training:", x_train.shape[0])
-    # print("Number of subject for testing ", x_test.shape[0])
-    # print("\n")
+    #############################################
+    #############################################
+    # Now we consider that every person that die after 1 year is considered as not dead (using the delai_fin_DC column)
+    y_deadline_1_year = data_grouped[['delai_fin_DC']]
+    y_deadline_1_year.fillna(366, inplace=True)
+    y_deadline_1_year['delai_fin_DC'] = y_deadline_1_year['delai_fin_DC'].apply(lambda x: 0 if x > 365 else 1)
+    print("Number of subjects that died within 1 year:", y_deadline_1_year[y_deadline_1_year['delai_fin_DC'] == 1].shape[0])
 
-    # # Plot the distribution of 'delai_fin_DC'
-    # data['delai_fin_DC'].hist()
-    # plt.title('Distribution of survival time between end of treatment and\n death (in days) for those that died')
-    # plt.xlabel('Survival time')
-    # plt.ylabel('Number of subjects')
-    # plt.show()
+    # Split the data into training and testing sets
+    x_train, x_test, y_train, y_test = train_test_split(x, y_deadline_1_year, test_size=0.2, random_state=1)
+    print("Number of subjects that died within 1 year (train):", y_train[y_train['delai_fin_DC'] == 1].shape[0])
+    print("Number of subjects that died within 1 year (test):", y_test[y_test['delai_fin_DC'] == 1].shape[0])  
 
-    # # Initialise the model
-    # model = XGBClassifier(seed=42)
-    # model.fit(x_train, y_train)
+    # Initialise the model
+    model = XGBClassifier(seed=42)
+    model.fit(x_train, y_train)
 
-    # # Performance on the training set
-    # y_test_pred = model.predict(x_test)
-    # y_test_proba = model.predict_proba(x_test)[:, 1]
+    # Performance on the training set
+    y_test_pred = model.predict(x_test)
+    y_test_proba = model.predict_proba(x_test)[:, 1]
 
-    # # Compute ROC-AUC, accuracy score, Brier score and PR-AUC score
-    # print("Model performance without any occurence deadline")
-    # print("ROC AUC Score: ", roc_auc_score(y_test, y_test_proba))
-    # print("Brier score ", brier_score_loss(y_test, y_test_proba))
-    # print("Average precision", precision_score(y_test, y_test_pred))
-    # print("Average Recall", recall_score(y_test, y_test_pred))
-    # print("Accuracy Score: ",accuracy_score(y_test, y_test_pred))
-    # precision_test, recall_test, _ = precision_recall_curve(y_test, y_test_pred)
-    # print("AUC-PR score  ", auc(recall_test, precision_test))
-    # print("\n")
+    # Compute ROC-AUC, accuracy score, Brier score and PR-AUC score
+    print("Model performance on the deadline of 1 year")
+    print("ROC AUC Score:", roc_auc_score(y_test, y_test_proba))
+    print("Brier score:", brier_score_loss(y_test, y_test_proba))
+    print("Average precision:", precision_score(y_test, y_test_pred))
+    print("Average Recall:", recall_score(y_test, y_test_pred))
+    print("Accuracy Score:",accuracy_score(y_test, y_test_pred))
+    precision_test, recall_test, _ = precision_recall_curve(y_test, y_test_pred)
+    print("AUC-PR score:", auc(recall_test, precision_test))
+    print("\n")
 
-    # # Save the model
-    # pickle.dump(model, open(os.path.join(output_folder, 'survival_model'), 'wb'))
+    # Save the model
+    pickle.dump(model, open(os.path.join(output_folder, 'survival_model_1_year'), 'wb'))
 
-    # #############################################
-    # #############################################
-    # # Now we consider that every person that die after 1 year is considered as not dead (using the delai_fin_DC column)
-    # y_deadline_1_year = data[['delai_fin_DC']]
-    # y_deadline_1_year.fillna(366, inplace=True)
-    # y_deadline_1_year['delai_fin_DC'] = y_deadline_1_year['delai_fin_DC'].apply(lambda x: 0 if x > 365 else 1)
-    # print("Number of subjects that died within 1 year: ", y_deadline_1_year[y_deadline_1_year['delai_fin_DC'] == 1].shape[0])
+    #############################################
+    #############################################
+    # Now we consider that every person that die after 3 year is considered as not dead (using the delai_fin_DC column)
+    y_deadline_3_year = data_grouped[['delai_fin_DC']]
+    y_deadline_3_year.fillna(1096, inplace=True)
+    y_deadline_3_year['delai_fin_DC'] = y_deadline_3_year['delai_fin_DC'].apply(lambda x: 0 if x > 1095 else 1)
+    print("Number of subjects that died within 3 year:", y_deadline_3_year[y_deadline_3_year['delai_fin_DC'] == 1].shape[0])
 
-    # # Split the data into training and testing sets
-    # x_train, x_test, y_train, y_test = train_test_split(x, y_deadline_1_year, test_size=0.2, random_state=0)
-    # print("Number of subjects that died within 1 year (train)", y_train[y_train['delai_fin_DC'] == 1].shape[0])
-    # print("Number of subjects that died within 1 year (test)", y_test[y_test['delai_fin_DC'] == 1].shape[0])   
+    # Split the data into training and testing sets
+    x_train, x_test, y_train, y_test = train_test_split(x, y_deadline_3_year, test_size=0.2, random_state=1)
+    print("\nNumber of subjects that died within 3 year (train):", y_train[y_train['delai_fin_DC'] == 1].shape[0])
+    print("Number of subjects that died within 3 year (test):", y_test[y_test['delai_fin_DC'] == 1].shape[0])   
 
-    # # Initialise the model
-    # model = XGBClassifier(seed=42)
-    # model.fit(x_train, y_train)
+    # Initialise the model
+    model = XGBClassifier(seed=42)
+    model.fit(x_train, y_train)
 
-    # # Performance on the training set
-    # y_test_pred = model.predict(x_test)
-    # y_test_proba = model.predict_proba(x_test)[:, 1]
+    # Performance on the training set
+    y_test_pred = model.predict(x_test)
+    y_test_proba = model.predict_proba(x_test)[:, 1]
 
-    # # Compute ROC-AUC, accuracy score, Brier score and PR-AUC score
-    # print("Model performance on the deadline of 1 year")
-    # print("ROC AUC Score: ", roc_auc_score(y_test, y_test_proba))
-    # print("Brier score ", brier_score_loss(y_test, y_test_proba))
-    # print("Average precision", precision_score(y_test, y_test_pred))
-    # print("Average Recall", recall_score(y_test, y_test_pred))
-    # print("Accuracy Score: ",accuracy_score(y_test, y_test_pred))
-    # precision_test, recall_test, _ = precision_recall_curve(y_test, y_test_pred)
-    # print("AUC-PR score  ", auc(recall_test, precision_test))
-    # print("\n")
+    # Compute ROC-AUC, accuracy score, Brier score and PR-AUC score
+    print("Model performance on the deadline of 3 year")
+    print("ROC AUC Score:", roc_auc_score(y_test, y_test_proba))
+    print("Brier score:", brier_score_loss(y_test, y_test_proba))
+    print("Average precision:", precision_score(y_test, y_test_pred))
+    print("Average Recall:", recall_score(y_test, y_test_pred))
+    print("Accuracy Score:",accuracy_score(y_test, y_test_pred))
+    precision_test, recall_test, _ = precision_recall_curve(y_test, y_test_pred)
+    print("AUC-PR score:", auc(recall_test, precision_test))
+    print("\n")
 
-    # # Save the model
-    # pickle.dump(model, open(os.path.join(output_folder, 'survival_model_1_year'), 'wb'))
-
-    # #############################################
-    # #############################################
-    # # Now we consider that every person that die after 3 year is considered as not dead (using the delai_fin_DC column)
-    # y_deadline_3_year = data[['delai_fin_DC']]
-    # y_deadline_3_year.fillna(1096, inplace=True)
-    # y_deadline_3_year['delai_fin_DC'] = y_deadline_3_year['delai_fin_DC'].apply(lambda x: 0 if x > 1095 else 1)
-    # print("Number of subjects that died within 3 year: ", y_deadline_3_year[y_deadline_3_year['delai_fin_DC'] == 1].shape[0])
-
-    # # Split the data into training and testing sets
-    # x_train, x_test, y_train, y_test = train_test_split(x, y_deadline_3_year, test_size=0.2, random_state=0)
-    # print("\nNumber of subjects that died within 3 year (train)", y_train[y_train['delai_fin_DC'] == 1].shape[0])
-    # print("Number of subjects that died within 3 year (test)", y_test[y_test['delai_fin_DC'] == 1].shape[0])   
-
-    # # Initialise the model
-    # model = XGBClassifier(seed=42)
-    # model.fit(x_train, y_train)
-
-    # # Performance on the training set
-    # y_test_pred = model.predict(x_test)
-    # y_test_proba = model.predict_proba(x_test)[:, 1]
-
-    # # Compute ROC-AUC, accuracy score, Brier score and PR-AUC score
-    # print("Model performance on the deadline of 3 year")
-    # print("ROC AUC Score: ", roc_auc_score(y_test, y_test_proba))
-    # print("Brier score ", brier_score_loss(y_test, y_test_proba))
-    # print("Average precision", precision_score(y_test, y_test_pred))
-    # print("Average Recall", recall_score(y_test, y_test_pred))
-    # print("Accuracy Score: ",accuracy_score(y_test, y_test_pred))
-    # precision_test, recall_test, _ = precision_recall_curve(y_test, y_test_pred)
-    # print("AUC-PR score  ", auc(recall_test, precision_test))
-    # print("\n")
-
-    # # Save the model
-    # pickle.dump(model, open(os.path.join(output_folder, 'survival_model_3_year'), 'wb'))
+    # Save the model
+    pickle.dump(model, open(os.path.join(output_folder, 'survival_model_3_year'), 'wb'))
 
     return None
 
