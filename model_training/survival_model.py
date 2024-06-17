@@ -74,9 +74,7 @@ def main():
     #     'tabac_sevre',
     #     'DC',
     # ]
-
     # column_problems = []
-
     # for patient in data['subject_id'].unique():
     #     data_patient = data[data['subject_id']==patient]
     #     for column in selected_columns:
@@ -189,6 +187,9 @@ def main():
     model = XGBClassifier(seed=42)
     model.fit(x_train, y_train)
 
+    # print the model parameters
+    print(model.get_params())
+
     # Performance on the training set
     y_test_pred = model.predict(x_test)
     y_test_proba = model.predict_proba(x_test)[:, 1]
@@ -204,8 +205,83 @@ def main():
     print("AUC-PR score:", auc(recall_test, precision_test))
     print("\n")
 
+    # Evaluate the model on the train set
+    y_train_pred = model.predict(x_train)
+    y_train_proba = model.predict_proba(x_train)[:, 1]
+
+    print("Model performance on the deadline of 3 year")
+    print("ROC AUC Score:", roc_auc_score(y_train, y_train_proba))
+    print("Brier score:", brier_score_loss(y_train, y_train_proba))
+    print("Average precision:", precision_score(y_train, y_train_pred))
+    print("Average Recall:", recall_score(y_train, y_train_pred))
+    print("Accuracy Score:",accuracy_score(y_train, y_train_pred))
+    precision_test, recall_test, _ = precision_recall_curve(y_train, y_train_pred)
+    print("AUC-PR score:", auc(recall_test, precision_test))
+    print("\n")
+
     # Save the model
     pickle.dump(model, open(os.path.join(output_folder, 'survival_model_3_year'), 'wb'))
+    
+    #############################################
+    # we fine-tune the last model
+    param_space = {
+        'learning_rate': (0.01, 1.0, 'log-uniform'),
+        'max_depth': (1, 50),
+        'gamma': (1e-9, 0.6, 'log-uniform'),
+        'n_estimators': (50, 1000),
+        'min_child_weight': (1, 10),
+        'subsample': (0.6, 1.0),
+        'colsample_bytree': (0.6, 1.0),
+        'colsample_bylevel': (0.6, 1.0),
+        'colsample_bynode': (0.6, 1.0),
+        'reg_alpha': (1e-9, 1.0, 'log-uniform'),
+        'reg_lambda': (1e-9, 1.0, 'log-uniform'),
+        'scale_pos_weight': (1, 10)
+    }
+    optimizer = BayesSearchCV(
+        estimator=XGBClassifier(objective= 'binary:logistic'),
+        search_spaces=param_space,
+        scoring='roc_auc',
+        cv=3,
+        n_iter=50,
+    )
+    optimizer.fit(x_train, y_train)
+    print(optimizer.best_params_)
+    print(optimizer.best_score_)
+    print("\n")
+
+    # Evaluate the model
+    y_test_pred = optimizer.predict(x_test)
+    y_test_proba = optimizer.predict_proba(x_test)[:, 1]
+
+    # Compute ROC-AUC, accuracy score, Brier score and PR-AUC score
+    print("Model performance on the deadline of 3 year")
+    print("ROC AUC Score:", roc_auc_score(y_test, y_test_proba))
+    print("Brier score:", brier_score_loss(y_test, y_test_proba))
+    print("Average precision:", precision_score(y_test, y_test_pred))
+    print("Average Recall:", recall_score(y_test, y_test_pred))
+    print("Accuracy Score:",accuracy_score(y_test, y_test_pred))
+    precision_test, recall_test, _ = precision_recall_curve(y_test, y_test_pred)
+    print("AUC-PR score:", auc(recall_test, precision_test))
+    print("\n")
+
+    # Evaluate the model on the train set
+    y_train_pred = optimizer.predict(x_train)
+    y_train_proba = optimizer.predict_proba(x_train)[:, 1]
+
+    print("Model performance on the deadline of 3 year")
+    print("ROC AUC Score:", roc_auc_score(y_train, y_train_proba))
+    print("Brier score:", brier_score_loss(y_train, y_train_proba))
+    print("Average precision:", precision_score(y_train, y_train_pred))
+    print("Average Recall:", recall_score(y_train, y_train_pred))
+    print("Accuracy Score:",accuracy_score(y_train, y_train_pred))
+    precision_test, recall_test, _ = precision_recall_curve(y_train, y_train_pred)
+    print("AUC-PR score:", auc(recall_test, precision_test))
+    print("\n")
+
+
+
+
 
     return None
 
