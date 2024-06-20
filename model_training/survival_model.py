@@ -348,6 +348,11 @@ def main():
     x_train = x_train.drop(columns = list(columns_to_drop_corr_target))
     x_test = x_test.drop(columns = list(columns_to_drop_corr_target))
 
+    # Print the final features of the model
+    print("Final features of the model:")
+    print(list(x_train.columns))
+    print("\n")
+
     # We evaluate the model after feature selection based on correlation with the target variable
     model = XGBClassifier(seed=42)
     model.fit(x_train, y_train)
