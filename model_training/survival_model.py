@@ -214,20 +214,6 @@ def main():
     print("AUC-PR score:", auc(recall_test, precision_test))
     print("\n")
 
-    # Evaluate the model on the train set
-    y_train_pred = model.predict(x_train)
-    y_train_proba = model.predict_proba(x_train)[:, 1]
-
-    print("Model performance on the deadline of 3 year")
-    print("ROC AUC Score:", roc_auc_score(y_train, y_train_proba))
-    print("Brier score:", brier_score_loss(y_train, y_train_proba))
-    print("Average precision:", precision_score(y_train, y_train_pred))
-    print("Average Recall:", recall_score(y_train, y_train_pred))
-    print("Accuracy Score:",accuracy_score(y_train, y_train_pred))
-    precision_test, recall_test, _ = precision_recall_curve(y_train, y_train_pred)
-    print("AUC-PR score:", auc(recall_test, precision_test))
-    print("\n")
-
     # Save the model
     pickle.dump(model, open(os.path.join(output_folder, 'survival_model_3_year'), 'wb'))
 
@@ -319,7 +305,6 @@ def main():
             if corr_matrix.loc[columns[i], columns[j]] > 0.85:
                 columns_to_drop_corr_feat.append(columns[j])
     columns_to_drop_corr_feat = set(columns_to_drop_corr_feat)
-    print(columns_to_drop_corr_feat)
     print("Number of features after correlation thresholding:", x_train.shape[1]-len(columns_to_drop_corr_feat))
     print("Number of features removed by correlation thresholding:", len(columns_to_drop_corr_feat))
     print("\n")
@@ -398,10 +383,11 @@ def main():
     # We define the model
     model = XGBClassifier(seed=42)
     # We define the search
-    search = BayesSearchCV(model, search_spaces, n_iter=100, n_jobs=1, cv=3, random_state=40)
+    search = BayesSearchCV(model, search_spaces, n_iter=100, n_jobs=1, cv=3, random_state=40, scoring='average_precision')
     # We fit the search
     search.fit(x_train, y_train)
     # We print the best parameters
+    print("Model parameters after hyperparameter tuning:")
     print(search.best_params_)
     # We evaluate the model
     model = search.best_estimator_
