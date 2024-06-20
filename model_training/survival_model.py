@@ -372,35 +372,66 @@ def main():
     print("AUC-PR score:", auc(recall_test, precision_test))
     print("\n")
 
-    # Then we do hyperparameter tuning with Bayesian optimization
-    # We define the hyperparameters to tune
-    search_spaces = {
-        'learning_rate': Real(0.01, 0.5),
-        'n_estimators': Integer(50, 1000),
-        'max_depth': Integer(3, 10),
-        'min_child_weight': Integer(1, 10),
-        'subsample': Real(0.5, 1),
-        'colsample_bytree': Real(0.01, 1),
-        'gamma': Real(0, 1),
-        'reg_alpha': Real(0, 1),
-        'reg_lambda': Real(0, 1),
-    }
-    # We define the model
-    model = XGBClassifier(seed=42)
-    # We define the search
-    search = BayesSearchCV(model, search_spaces, n_iter=100, n_jobs=1, cv=3, random_state=40, scoring='average_precision')
-    # We fit the search
-    search.fit(x_train, y_train)
-    # We print the best parameters
-    print("Model parameters after hyperparameter tuning:")
-    print(search.best_params_)
-    # We evaluate the model
-    model = search.best_estimator_
+    #############################################
+    # Section removed because the best hyperparameters were found
+    #############################################
+    # # Then we do hyperparameter tuning with Bayesian optimization
+    # # We define the hyperparameters to tune
+    # search_spaces = {
+    #     'learning_rate': Real(0.01, 0.5),
+    #     'n_estimators': Integer(50, 1000),
+    #     'max_depth': Integer(3, 10),
+    #     'min_child_weight': Integer(1, 10),
+    #     'subsample': Real(0.5, 1),
+    #     'colsample_bytree': Real(0.01, 1),
+    #     'gamma': Real(0, 1),
+    #     'reg_alpha': Real(0, 1),
+    #     'reg_lambda': Real(0, 1),
+    # }
+    # # We define the model
+    # model = XGBClassifier(seed=42)
+    # # We define the search
+    # search = BayesSearchCV(model, search_spaces, n_iter=100, n_jobs=1, cv=3, random_state=40, scoring='average_precision')
+    # # We fit the search
+    # search.fit(x_train, y_train)
+    # # We print the best parameters
+    # print("Model parameters after hyperparameter tuning:")
+    # print(search.best_params_)
+    # # We evaluate the model
+    # model = search.best_estimator_
+    # y_test_pred = model.predict(x_test)
+    # y_test_proba = model.predict_proba(x_test)[:, 1]
+
+    # # Compute ROC-AUC, accuracy score, Brier score and PR-AUC score
+    # print("Model performance after hyperparameter tuning")
+    # print("ROC AUC Score: ", roc_auc_score(y_test, y_test_proba))
+    # print("Brier score:", brier_score_loss(y_test, y_test_proba))
+    # print("Average precision:", precision_score(y_test, y_test_pred))
+    # print("Average Recall:", recall_score(y_test, y_test_pred))
+    # print("Accuracy Score: ",accuracy_score(y_test, y_test_pred))
+    # precision_test, recall_test, _ = precision_recall_curve(y_test, y_test_pred)
+    # print("AUC-PR score:", auc(recall_test, precision_test))
+    # print("\n")
+
+    # # Save the model
+    # pickle.dump(model, open(os.path.join(output_folder, 'survival_model_no_deadline_fewer_features'), 'wb'))
+
+    #############################################
+    #############################################
+
+    # We now test a model with the following parameters (found with Bayesian optimization): 
+    # [('colsample_bytree', 0.01), ('gamma', 0.479917457783544), ('learning_rate', 0.5), ('max_depth', 10), ('min_child_weight', 1), 
+    # ('n_estimators', 50), ('reg_alpha', 0.4265448487839457), ('reg_lambda', 1.0), ('subsample', 0.8001997191867042)])
+    model = XGBClassifier(colsample_bytree=0.01, gamma=0.479917457783544, learning_rate=0.5, max_depth=10, min_child_weight=1, n_estimators=50,
+                           reg_alpha=0.4265448487839457, reg_lambda=1.0, subsample=0.8001997191867042, seed=42)
+    model.fit(x_train, y_train)
+
+    # Performance on the test set
     y_test_pred = model.predict(x_test)
     y_test_proba = model.predict_proba(x_test)[:, 1]
 
     # Compute ROC-AUC, accuracy score, Brier score and PR-AUC score
-    print("Model performance after hyperparameter tuning")
+    print("Model performance with the hyperparameter found with Bayesian Optimisation")
     print("ROC AUC Score: ", roc_auc_score(y_test, y_test_proba))
     print("Brier score:", brier_score_loss(y_test, y_test_proba))
     print("Average precision:", precision_score(y_test, y_test_pred))
