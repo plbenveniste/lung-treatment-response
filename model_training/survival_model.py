@@ -89,321 +89,349 @@ def main():
     # We extract the site where the subjects are from which is the first letter of the subject_id
     data_grouped['site'] = data_grouped['subject_id'].apply(lambda x: x[0])
     
-    # We build a column which indicates if it is used as training or testing data (testing if the subject is from site 'V')
-    data_grouped['train_test'] = data_grouped['site'].apply(lambda x: 'train' if x != 'V' else 'test')
+    # # We build a column which indicates if it is used as training or testing data (testing if the subject is from site 'V')
+    # data_grouped['train_test'] = data_grouped['site'].apply(lambda x: 'train' if x != 'V' else 'test')
 
-    # Split into features and target
-    y = data_grouped[['DC', 'delai_fin_DC', 'train_test']]
-    x = data_grouped.drop(columns=['DC', 'delai_fin_DC', 'subject_id', 'site'])
+    # # Split into features and target
+    # y = data_grouped[['DC', 'delai_fin_DC', 'train_test']]
+    # x = data_grouped.drop(columns=['DC', 'delai_fin_DC', 'subject_id', 'site'])
     
-    # In this case, because we are only interested in the prediction of survival, we extract only the 'DC'
-    y = y[['DC', 'train_test']]
-    # We replace all nan values by 0 in 'DC'
-    y.fillna(0, inplace=True)
+    # # In this case, because we are only interested in the prediction of survival, we extract only the 'DC'
+    # y = y[['DC', 'train_test']]
+    # # We replace all nan values by 0 in 'DC'
+    # y.fillna(0, inplace=True)
 
-    # Describe x and y
-    print('Feature data shape:', x.shape)
-    print('Target data shape:', y.shape)
-    print("Number of subjects which died:", y[y['DC']==1].shape[0])
+    # # Describe x and y
+    # print('Feature data shape:', x.shape)
+    # print('Target data shape:', y.shape)
+    # print("Number of subjects which died:", y[y['DC']==1].shape[0])
 
-    # Split the data into training and testing sets based on column 'train_test'
-    x_train = x[x['train_test'] == 'train'].drop(columns=['train_test'])
-    x_test = x[x['train_test'] == 'test'].drop(columns=['train_test'])
-    y_train = y[y['train_test'] == 'train'].drop(columns=['train_test'])
-    y_test = y[y['train_test'] == 'test'].drop(columns=['train_test'])
-    # x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=0.2, random_state=1)
-    print("\nNumber of subject for training:", x_train.shape[0])
-    print("Number of subject for testing:", x_test.shape[0])
-    print("\n")
+    # # Split the data into training and testing sets based on column 'train_test'
+    # x_train = x[x['train_test'] == 'train'].drop(columns=['train_test'])
+    # x_test = x[x['train_test'] == 'test'].drop(columns=['train_test'])
+    # y_train = y[y['train_test'] == 'train'].drop(columns=['train_test'])
+    # y_test = y[y['train_test'] == 'test'].drop(columns=['train_test'])
+    # # x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=0.2, random_state=1)
+    # print("\nNumber of subject for training:", x_train.shape[0])
+    # print("Number of subject for testing:", x_test.shape[0])
+    # print("\n")
 
-    # Plot the distribution of 'delai_fin_DC'
-    data['delai_fin_DC'].hist()
-    plt.title('Distribution of survival time between end of treatment and\n death (in days) for those that died')
-    plt.xlabel('Survival time')
-    plt.ylabel('Number of subjects')
-    # plt.show()
+    # # Plot the distribution of 'delai_fin_DC'
+    # data['delai_fin_DC'].hist()
+    # plt.title('Distribution of survival time between end of treatment and\n death (in days) for those that died')
+    # plt.xlabel('Survival time')
+    # plt.ylabel('Number of subjects')
+    # # plt.show()
 
-    # Initialise the model
-    model = XGBClassifier(seed=42)
-    model.fit(x_train, y_train)
-
-    # Performance on the training set
-    y_test_pred = model.predict(x_test)
-    y_test_proba = model.predict_proba(x_test)[:, 1]
-
-    # Compute ROC-AUC, accuracy score, Brier score and PR-AUC score
-    print("Model performance without any occurence deadline")
-    print("ROC AUC Score: ", roc_auc_score(y_test, y_test_proba))
-    print("Brier score:", brier_score_loss(y_test, y_test_proba))
-    print("Average precision:", precision_score(y_test, y_test_pred))
-    print("Average Recall:", recall_score(y_test, y_test_pred))
-    print("Accuracy Score: ",accuracy_score(y_test, y_test_pred))
-    precision_test, recall_test, _ = precision_recall_curve(y_test, y_test_pred)
-    print("AUC-PR score:", auc(recall_test, precision_test))
-    print("\n")
-
-    # Save the model
-    pickle.dump(model, open(os.path.join(output_folder, 'survival_model'), 'wb'))
-
-    #############################################
-    #############################################
-    # Now we consider that every person that die after 1 year is considered as not dead (using the delai_fin_DC column)
-    y_deadline_1_year = data_grouped[['delai_fin_DC', 'train_test']]
-    y_deadline_1_year.fillna(366, inplace=True)
-    y_deadline_1_year['delai_fin_DC'] = y_deadline_1_year['delai_fin_DC'].apply(lambda x: 0 if x > 365 else 1)
-    print("Number of subjects that died within 1 year:", y_deadline_1_year[y_deadline_1_year['delai_fin_DC'] == 1].shape[0])
-
-    # Split the data into training and testing sets
-    y_train = y_deadline_1_year[y_deadline_1_year['train_test'] == 'train'].drop(columns=['train_test'])
-    y_test = y_deadline_1_year[y_deadline_1_year['train_test'] == 'test'].drop(columns=['train_test'])
-    print("Number of subjects that died within 1 year (train):", y_train[y_train['delai_fin_DC'] == 1].shape[0])
-    print("Number of subjects that died within 1 year (test):", y_test[y_test['delai_fin_DC'] == 1].shape[0])  
-
-    # Initialise the model
-    model = XGBClassifier(seed=42)
-    model.fit(x_train, y_train)
-
-    # Performance on the training set
-    y_test_pred = model.predict(x_test)
-    y_test_proba = model.predict_proba(x_test)[:, 1]
-
-    # Compute ROC-AUC, accuracy score, Brier score and PR-AUC score
-    print("Model performance on the deadline of 1 year")
-    print("ROC AUC Score:", roc_auc_score(y_test, y_test_proba))
-    print("Brier score:", brier_score_loss(y_test, y_test_proba))
-    print("Average precision:", precision_score(y_test, y_test_pred))
-    print("Average Recall:", recall_score(y_test, y_test_pred))
-    print("Accuracy Score:",accuracy_score(y_test, y_test_pred))
-    precision_test, recall_test, _ = precision_recall_curve(y_test, y_test_pred)
-    print("AUC-PR score:", auc(recall_test, precision_test))
-    print("\n")
-
-    # Save the model
-    pickle.dump(model, open(os.path.join(output_folder, 'survival_model_1_year'), 'wb'))
-
-    #############################################
-    #############################################
-    # Now we consider that every person that die after 3 year is considered as not dead (using the delai_fin_DC column)
-    y_deadline_3_year = data_grouped[['delai_fin_DC', 'train_test']]
-    y_deadline_3_year.fillna(1096, inplace=True)
-    y_deadline_3_year['delai_fin_DC'] = y_deadline_3_year['delai_fin_DC'].apply(lambda x: 0 if x > 1095 else 1)
-    print("Number of subjects that died within 3 year:", y_deadline_3_year[y_deadline_3_year['delai_fin_DC'] == 1].shape[0])
-
-    # Split the data into training and testing sets
-    y_train = y_deadline_3_year[y_deadline_3_year['train_test'] == 'train'].drop(columns=['train_test'])
-    y_test = y_deadline_3_year[y_deadline_3_year['train_test'] == 'test'].drop(columns=['train_test'])
-    print("\nNumber of subjects that died within 3 year (train):", y_train[y_train['delai_fin_DC'] == 1].shape[0])
-    print("Number of subjects that died within 3 year (test):", y_test[y_test['delai_fin_DC'] == 1].shape[0])   
-
-    # Initialise the model
-    model = XGBClassifier(seed=42)
-    model.fit(x_train, y_train)
-
-    # Performance on the training set
-    y_test_pred = model.predict(x_test)
-    y_test_proba = model.predict_proba(x_test)[:, 1]
-
-    # Compute ROC-AUC, accuracy score, Brier score and PR-AUC score
-    print("Model performance on the deadline of 3 year")
-    print("ROC AUC Score:", roc_auc_score(y_test, y_test_proba))
-    print("Brier score:", brier_score_loss(y_test, y_test_proba))
-    print("Average precision:", precision_score(y_test, y_test_pred))
-    print("Average Recall:", recall_score(y_test, y_test_pred))
-    print("Accuracy Score:",accuracy_score(y_test, y_test_pred))
-    precision_test, recall_test, _ = precision_recall_curve(y_test, y_test_pred)
-    print("AUC-PR score:", auc(recall_test, precision_test))
-    print("\n")
-
-    # Save the model
-    pickle.dump(model, open(os.path.join(output_folder, 'survival_model_3_year'), 'wb'))
-
-    #############################################
-    #############################################
-    # Now we move on to training the model with no deadline with fewer features based on what we explored in file `data_preprocessing/5_eliminating_radiomics_features.py` 
-    # We keep the clinical features
-    clinical_features = ['sexe', 'age', 'BMI', 'score_charlson', 'OMS', 'tabac', 'tabac_PA', 'tabac_sevre', 'histo', 'T', 'centrale', 'dose_tot', 'etalement',
-                         'vol_GTV', 'vol_PTV', 'vol_ITV', 'couv_PTV', 'BED_10']
-    # We keep some radiomics features: selected here: 
-    radiomics_features = ['INTENSITY-BASED_MeanIntensity', 'INTENSITY-BASED_IntensitySkewness', 'INTENSITY-BASED_IntensityKurtosis', 'INTENSITY-BASED_10thIntensityPercentile',          
-                         'INTENSITY-BASED_AreaUnderCurveCIVH', 'INTENSITY-BASED_RootMeanSquareIntensity', 'INTENSITY-HISTOGRAM_IntensityHistogramMean',       
-                         'INTENSITY-HISTOGRAM_IntensityHistogramVariance', 'NGTDM_Complexity', 'NGTDM_Strength']
-    # Join the two lists
-    x = data_grouped[clinical_features + radiomics_features + ['train_test']]
-    y = data_grouped[['DC', 'train_test']]
-    # We replace all nan values by 0 in 'DC'
-    y.fillna(0, inplace=True)
-
-    # Split the data into training and testing sets
-    x_train = x[x['train_test'] == 'train'].drop(columns=['train_test'])
-    x_test = x[x['train_test'] == 'test'].drop(columns=['train_test'])
-    y_train = y[y['train_test'] == 'train'].drop(columns=['train_test'])
-    y_train = y_train['DC']
-    y_test = y[y['train_test'] == 'test'].drop(columns=['train_test'])
-    y_test = y_test['DC']
-    print("\nInitial number of features:", x_train.shape[1])
-    print("Number of subject for training:", x_train.shape[0])
-    print("Number of subject for testing:", x_test.shape[0])
-    print("\n")
-
-    # Initialise the model
-    model = XGBClassifier(seed=42)
-    model.fit(x_train, y_train)
-
-    # Performance on the training set
-    y_test_pred = model.predict(x_test)
-    y_test_proba = model.predict_proba(x_test)[:, 1]
-
-    # Compute ROC-AUC, accuracy score, Brier score and PR-AUC score
-    print("Model performance without any occurence deadline")
-    print("ROC AUC Score: ", roc_auc_score(y_test, y_test_proba))
-    print("Brier score:", brier_score_loss(y_test, y_test_proba))
-    print("Average precision:", precision_score(y_test, y_test_pred))
-    print("Average Recall:", recall_score(y_test, y_test_pred))
-    print("Accuracy Score: ",accuracy_score(y_test, y_test_pred))
-    precision_test, recall_test, _ = precision_recall_curve(y_test, y_test_pred)
-    print("AUC-PR score:", auc(recall_test, precision_test))
-    print("\n")
-
-    #Now we perform variance thresholding
-    shape_ini = x_train.shape
-    selector = VarianceThreshold(threshold=0.2)
-    selector.fit(x_train)
-    # Extract the names of the columns to remove
-    columns_to_remove_var_thresh = x_train.columns[~selector.get_support()]
-    # We remove these columns from the data
-    x_train = x_train.drop(columns=columns_to_remove_var_thresh)
-    x_test = x_test.drop(columns=columns_to_remove_var_thresh)
-    print("Number of features after variance thresholding:", x_train.shape[1])
-    print("Number of features removed by variance thresholding:", shape_ini[1]-x_train.shape[1])
-    print("\n")
-
-    # We evaluate the model after variance thresholding
-    model = XGBClassifier(seed=42)
-    model.fit(x_train, y_train)
-
-    # Performance on the test set
-    y_test_pred = model.predict(x_test)
-    y_test_proba = model.predict_proba(x_test)[:, 1]
-
-    # Compute ROC-AUC, accuracy score, Brier score and PR-AUC score
-    print("Model performance after variance thresholding")
-    print("ROC AUC Score: ", roc_auc_score(y_test, y_test_proba))
-    print("Brier score:", brier_score_loss(y_test, y_test_proba))
-    print("Average precision:", precision_score(y_test, y_test_pred))
-    print("Average Recall:", recall_score(y_test, y_test_pred))
-    print("Accuracy Score: ",accuracy_score(y_test, y_test_pred))
-    precision_test, recall_test, _ = precision_recall_curve(y_test, y_test_pred)
-    print("AUC-PR score:", auc(recall_test, precision_test))
-    print("\n")
-
-    # We now perform feature selection based on the correlation with other features
-    corr_matrix = x_train.corr()
-    columns = corr_matrix.columns
-    columns_to_drop_corr_feat = []
-    for i in range(len(columns)):
-        for j in range(i + 1, len(columns)):
-            if corr_matrix.loc[columns[i], columns[j]] > 0.85:
-                columns_to_drop_corr_feat.append(columns[j])
-    columns_to_drop_corr_feat = set(columns_to_drop_corr_feat)
-    print("Number of features after correlation thresholding:", x_train.shape[1]-len(columns_to_drop_corr_feat))
-    print("Number of features removed by correlation thresholding:", len(columns_to_drop_corr_feat))
-    print("\n")
-
-    # # Remove the columns
-    x_train = x_train.drop(columns = list(columns_to_drop_corr_feat))
-    x_test = x_test.drop(columns = list(columns_to_drop_corr_feat))
-
-    # We evaluate the model after feature selection based on correlation
-    model = XGBClassifier(seed=42)
-    model.fit(x_train, y_train)
-
-    # Performance on the test set
-    y_test_pred = model.predict(x_test)
-    y_test_proba = model.predict_proba(x_test)[:, 1]
-
-    # Compute ROC-AUC, accuracy score, Brier score and PR-AUC score
-    print("Model performance after feature selection based on correlation")
-    print("ROC AUC Score: ", roc_auc_score(y_test, y_test_proba))
-    print("Brier score:", brier_score_loss(y_test, y_test_proba))
-    print("Average precision:", precision_score(y_test, y_test_pred))
-    print("Average Recall:", recall_score(y_test, y_test_pred))
-    print("Accuracy Score: ",accuracy_score(y_test, y_test_pred))
-    precision_test, recall_test, _ = precision_recall_curve(y_test, y_test_pred)
-    print("AUC-PR score:", auc(recall_test, precision_test))
-    print("\n")
-
-    # We now perform feature selection based on the correlation with the target variable
-    corr_matrix = x_train.corrwith(y_train)
-    columns = corr_matrix.index
-    columns_to_drop_corr_target = []
-    for i in range(len(columns)):
-        if abs(corr_matrix.iloc[i]) < 0.1:
-            columns_to_drop_corr_target.append(columns[i])
-    columns_to_drop_corr_target = set(columns_to_drop_corr_target)
-    print("Number of features after correlation with target thresholding:", x_train.shape[1]-len(columns_to_drop_corr_target))
-    print("Number of features removed by correlation with target thresholding:", len(columns_to_drop_corr_target))
-    print("\n")
-
-    # Remove the columns
-    x_train = x_train.drop(columns = list(columns_to_drop_corr_target))
-    x_test = x_test.drop(columns = list(columns_to_drop_corr_target))
-
-    # Print the final features of the model
-    print("Final features of the model:")
-    print(list(x_train.columns))
-    print("\n")
-
-    # We evaluate the model after feature selection based on correlation with the target variable
-    model = XGBClassifier(seed=42)
-    model.fit(x_train, y_train)
-
-    # Performance on the test set
-    y_test_pred = model.predict(x_test)
-    y_test_proba = model.predict_proba(x_test)[:, 1]
-
-    # Compute ROC-AUC, accuracy score, Brier score and PR-AUC score
-    print("Model performance after feature selection based on correlation with target")
-    print("ROC AUC Score: ", roc_auc_score(y_test, y_test_proba))
-    print("Brier score:", brier_score_loss(y_test, y_test_proba))
-    print("Average precision:", precision_score(y_test, y_test_pred))
-    print("Average Recall:", recall_score(y_test, y_test_pred))
-    print("Accuracy Score: ",accuracy_score(y_test, y_test_pred))
-    precision_test, recall_test, _ = precision_recall_curve(y_test, y_test_pred)
-    print("AUC-PR score:", auc(recall_test, precision_test))
-    print("\n")
-
-    #############################################
-    # Section removed because the best hyperparameters were found
-    #############################################
-    # # Then we do hyperparameter tuning with Bayesian optimization
-    # # We define the hyperparameters to tune
-    # search_spaces = {
-    #     'learning_rate': Real(0.01, 0.5),
-    #     'n_estimators': Integer(50, 1000),
-    #     'max_depth': Integer(3, 10),
-    #     'min_child_weight': Integer(1, 10),
-    #     'subsample': Real(0.5, 1),
-    #     'colsample_bytree': Real(0.01, 1),
-    #     'gamma': Real(0, 1),
-    #     'reg_alpha': Real(0, 1),
-    #     'reg_lambda': Real(0, 1),
-    # }
-    # # We define the model
+    # # Initialise the model
     # model = XGBClassifier(seed=42)
-    # # We define the search
-    # search = BayesSearchCV(model, search_spaces, n_iter=100, n_jobs=1, cv=3, random_state=40, scoring='average_precision')
-    # # We fit the search
-    # search.fit(x_train, y_train)
-    # # We print the best parameters
-    # print("Model parameters after hyperparameter tuning:")
-    # print(search.best_params_)
-    # # We evaluate the model
-    # model = search.best_estimator_
+    # model.fit(x_train, y_train)
+
+    # # Performance on the training set
     # y_test_pred = model.predict(x_test)
     # y_test_proba = model.predict_proba(x_test)[:, 1]
 
     # # Compute ROC-AUC, accuracy score, Brier score and PR-AUC score
-    # print("Model performance after hyperparameter tuning")
+    # print("Model performance without any occurence deadline")
+    # print("ROC AUC Score: ", roc_auc_score(y_test, y_test_proba))
+    # print("Brier score:", brier_score_loss(y_test, y_test_proba))
+    # print("Average precision:", precision_score(y_test, y_test_pred))
+    # print("Average Recall:", recall_score(y_test, y_test_pred))
+    # print("Accuracy Score: ",accuracy_score(y_test, y_test_pred))
+    # precision_test, recall_test, _ = precision_recall_curve(y_test, y_test_pred)
+    # print("AUC-PR score:", auc(recall_test, precision_test))
+    # print("\n")
+
+    # # Save the model
+    # pickle.dump(model, open(os.path.join(output_folder, 'survival_model'), 'wb'))
+
+    # #############################################
+    # #############################################
+    # # Now we consider that every person that die after 1 year is considered as not dead (using the delai_fin_DC column)
+    # y_deadline_1_year = data_grouped[['delai_fin_DC', 'train_test']]
+    # y_deadline_1_year.fillna(366, inplace=True)
+    # y_deadline_1_year['delai_fin_DC'] = y_deadline_1_year['delai_fin_DC'].apply(lambda x: 0 if x > 365 else 1)
+    # print("Number of subjects that died within 1 year:", y_deadline_1_year[y_deadline_1_year['delai_fin_DC'] == 1].shape[0])
+
+    # # Split the data into training and testing sets
+    # y_train = y_deadline_1_year[y_deadline_1_year['train_test'] == 'train'].drop(columns=['train_test'])
+    # y_test = y_deadline_1_year[y_deadline_1_year['train_test'] == 'test'].drop(columns=['train_test'])
+    # print("Number of subjects that died within 1 year (train):", y_train[y_train['delai_fin_DC'] == 1].shape[0])
+    # print("Number of subjects that died within 1 year (test):", y_test[y_test['delai_fin_DC'] == 1].shape[0])  
+
+    # # Initialise the model
+    # model = XGBClassifier(seed=42)
+    # model.fit(x_train, y_train)
+
+    # # Performance on the training set
+    # y_test_pred = model.predict(x_test)
+    # y_test_proba = model.predict_proba(x_test)[:, 1]
+
+    # # Compute ROC-AUC, accuracy score, Brier score and PR-AUC score
+    # print("Model performance on the deadline of 1 year")
+    # print("ROC AUC Score:", roc_auc_score(y_test, y_test_proba))
+    # print("Brier score:", brier_score_loss(y_test, y_test_proba))
+    # print("Average precision:", precision_score(y_test, y_test_pred))
+    # print("Average Recall:", recall_score(y_test, y_test_pred))
+    # print("Accuracy Score:",accuracy_score(y_test, y_test_pred))
+    # precision_test, recall_test, _ = precision_recall_curve(y_test, y_test_pred)
+    # print("AUC-PR score:", auc(recall_test, precision_test))
+    # print("\n")
+
+    # # Save the model
+    # pickle.dump(model, open(os.path.join(output_folder, 'survival_model_1_year'), 'wb'))
+
+    # #############################################
+    # #############################################
+    # # Now we consider that every person that die after 3 year is considered as not dead (using the delai_fin_DC column)
+    # y_deadline_3_year = data_grouped[['delai_fin_DC', 'train_test']]
+    # y_deadline_3_year.fillna(1096, inplace=True)
+    # y_deadline_3_year['delai_fin_DC'] = y_deadline_3_year['delai_fin_DC'].apply(lambda x: 0 if x > 1095 else 1)
+    # print("Number of subjects that died within 3 year:", y_deadline_3_year[y_deadline_3_year['delai_fin_DC'] == 1].shape[0])
+
+    # # Split the data into training and testing sets
+    # y_train = y_deadline_3_year[y_deadline_3_year['train_test'] == 'train'].drop(columns=['train_test'])
+    # y_test = y_deadline_3_year[y_deadline_3_year['train_test'] == 'test'].drop(columns=['train_test'])
+    # print("\nNumber of subjects that died within 3 year (train):", y_train[y_train['delai_fin_DC'] == 1].shape[0])
+    # print("Number of subjects that died within 3 year (test):", y_test[y_test['delai_fin_DC'] == 1].shape[0])   
+
+    # # Initialise the model
+    # model = XGBClassifier(seed=42)
+    # model.fit(x_train, y_train)
+
+    # # Performance on the training set
+    # y_test_pred = model.predict(x_test)
+    # y_test_proba = model.predict_proba(x_test)[:, 1]
+
+    # # Compute ROC-AUC, accuracy score, Brier score and PR-AUC score
+    # print("Model performance on the deadline of 3 year")
+    # print("ROC AUC Score:", roc_auc_score(y_test, y_test_proba))
+    # print("Brier score:", brier_score_loss(y_test, y_test_proba))
+    # print("Average precision:", precision_score(y_test, y_test_pred))
+    # print("Average Recall:", recall_score(y_test, y_test_pred))
+    # print("Accuracy Score:",accuracy_score(y_test, y_test_pred))
+    # precision_test, recall_test, _ = precision_recall_curve(y_test, y_test_pred)
+    # print("AUC-PR score:", auc(recall_test, precision_test))
+    # print("\n")
+
+    # # Save the model
+    # pickle.dump(model, open(os.path.join(output_folder, 'survival_model_3_year'), 'wb'))
+
+    # #############################################
+    # #############################################
+    # # Now we move on to training the model with no deadline with fewer features based on what we explored in file `data_preprocessing/5_eliminating_radiomics_features.py` 
+    # # We keep the clinical features
+    # clinical_features = ['sexe', 'age', 'BMI', 'score_charlson', 'OMS', 'tabac', 'tabac_PA', 'tabac_sevre', 'histo', 'T', 'centrale', 'dose_tot', 'etalement',
+    #                      'vol_GTV', 'vol_PTV', 'vol_ITV', 'couv_PTV', 'BED_10']
+    # # We keep some radiomics features: selected here: 
+    # radiomics_features = ['INTENSITY-BASED_MeanIntensity', 'INTENSITY-BASED_IntensitySkewness', 'INTENSITY-BASED_IntensityKurtosis', 'INTENSITY-BASED_10thIntensityPercentile',          
+    #                      'INTENSITY-BASED_AreaUnderCurveCIVH', 'INTENSITY-BASED_RootMeanSquareIntensity', 'INTENSITY-HISTOGRAM_IntensityHistogramMean',       
+    #                      'INTENSITY-HISTOGRAM_IntensityHistogramVariance', 'NGTDM_Complexity', 'NGTDM_Strength']
+    # # Join the two lists
+    # x = data_grouped[clinical_features + radiomics_features + ['train_test']]
+    # y = data_grouped[['DC', 'train_test']]
+    # # We replace all nan values by 0 in 'DC'
+    # y.fillna(0, inplace=True)
+
+    # # Split the data into training and testing sets
+    # x_train = x[x['train_test'] == 'train'].drop(columns=['train_test'])
+    # x_test = x[x['train_test'] == 'test'].drop(columns=['train_test'])
+    # y_train = y[y['train_test'] == 'train'].drop(columns=['train_test'])
+    # y_train = y_train['DC']
+    # y_test = y[y['train_test'] == 'test'].drop(columns=['train_test'])
+    # y_test = y_test['DC']
+    # print("\nInitial number of features:", x_train.shape[1])
+    # print("Number of subject for training:", x_train.shape[0])
+    # print("Number of subject for testing:", x_test.shape[0])
+    # print("\n")
+
+    # # Initialise the model
+    # model = XGBClassifier(seed=42)
+    # model.fit(x_train, y_train)
+
+    # # Performance on the training set
+    # y_test_pred = model.predict(x_test)
+    # y_test_proba = model.predict_proba(x_test)[:, 1]
+
+    # # Compute ROC-AUC, accuracy score, Brier score and PR-AUC score
+    # print("Model performance without any occurence deadline")
+    # print("ROC AUC Score: ", roc_auc_score(y_test, y_test_proba))
+    # print("Brier score:", brier_score_loss(y_test, y_test_proba))
+    # print("Average precision:", precision_score(y_test, y_test_pred))
+    # print("Average Recall:", recall_score(y_test, y_test_pred))
+    # print("Accuracy Score: ",accuracy_score(y_test, y_test_pred))
+    # precision_test, recall_test, _ = precision_recall_curve(y_test, y_test_pred)
+    # print("AUC-PR score:", auc(recall_test, precision_test))
+    # print("\n")
+
+    # #Now we perform variance thresholding
+    # shape_ini = x_train.shape
+    # selector = VarianceThreshold(threshold=0.2)
+    # selector.fit(x_train)
+    # # Extract the names of the columns to remove
+    # columns_to_remove_var_thresh = x_train.columns[~selector.get_support()]
+    # # We remove these columns from the data
+    # x_train = x_train.drop(columns=columns_to_remove_var_thresh)
+    # x_test = x_test.drop(columns=columns_to_remove_var_thresh)
+    # print("Number of features after variance thresholding:", x_train.shape[1])
+    # print("Number of features removed by variance thresholding:", shape_ini[1]-x_train.shape[1])
+    # print("\n")
+
+    # # We evaluate the model after variance thresholding
+    # model = XGBClassifier(seed=42)
+    # model.fit(x_train, y_train)
+
+    # # Performance on the test set
+    # y_test_pred = model.predict(x_test)
+    # y_test_proba = model.predict_proba(x_test)[:, 1]
+
+    # # Compute ROC-AUC, accuracy score, Brier score and PR-AUC score
+    # print("Model performance after variance thresholding")
+    # print("ROC AUC Score: ", roc_auc_score(y_test, y_test_proba))
+    # print("Brier score:", brier_score_loss(y_test, y_test_proba))
+    # print("Average precision:", precision_score(y_test, y_test_pred))
+    # print("Average Recall:", recall_score(y_test, y_test_pred))
+    # print("Accuracy Score: ",accuracy_score(y_test, y_test_pred))
+    # precision_test, recall_test, _ = precision_recall_curve(y_test, y_test_pred)
+    # print("AUC-PR score:", auc(recall_test, precision_test))
+    # print("\n")
+
+    # # We now perform feature selection based on the correlation with other features
+    # corr_matrix = x_train.corr()
+    # columns = corr_matrix.columns
+    # columns_to_drop_corr_feat = []
+    # for i in range(len(columns)):
+    #     for j in range(i + 1, len(columns)):
+    #         if corr_matrix.loc[columns[i], columns[j]] > 0.85:
+    #             columns_to_drop_corr_feat.append(columns[j])
+    # columns_to_drop_corr_feat = set(columns_to_drop_corr_feat)
+    # print("Number of features after correlation thresholding:", x_train.shape[1]-len(columns_to_drop_corr_feat))
+    # print("Number of features removed by correlation thresholding:", len(columns_to_drop_corr_feat))
+    # print("\n")
+
+    # # # Remove the columns
+    # x_train = x_train.drop(columns = list(columns_to_drop_corr_feat))
+    # x_test = x_test.drop(columns = list(columns_to_drop_corr_feat))
+
+    # # We evaluate the model after feature selection based on correlation
+    # model = XGBClassifier(seed=42)
+    # model.fit(x_train, y_train)
+
+    # # Performance on the test set
+    # y_test_pred = model.predict(x_test)
+    # y_test_proba = model.predict_proba(x_test)[:, 1]
+
+    # # Compute ROC-AUC, accuracy score, Brier score and PR-AUC score
+    # print("Model performance after feature selection based on correlation")
+    # print("ROC AUC Score: ", roc_auc_score(y_test, y_test_proba))
+    # print("Brier score:", brier_score_loss(y_test, y_test_proba))
+    # print("Average precision:", precision_score(y_test, y_test_pred))
+    # print("Average Recall:", recall_score(y_test, y_test_pred))
+    # print("Accuracy Score: ",accuracy_score(y_test, y_test_pred))
+    # precision_test, recall_test, _ = precision_recall_curve(y_test, y_test_pred)
+    # print("AUC-PR score:", auc(recall_test, precision_test))
+    # print("\n")
+
+    # # We now perform feature selection based on the correlation with the target variable
+    # corr_matrix = x_train.corrwith(y_train)
+    # columns = corr_matrix.index
+    # columns_to_drop_corr_target = []
+    # for i in range(len(columns)):
+    #     if abs(corr_matrix.iloc[i]) < 0.1:
+    #         columns_to_drop_corr_target.append(columns[i])
+    # columns_to_drop_corr_target = set(columns_to_drop_corr_target)
+    # print("Number of features after correlation with target thresholding:", x_train.shape[1]-len(columns_to_drop_corr_target))
+    # print("Number of features removed by correlation with target thresholding:", len(columns_to_drop_corr_target))
+    # print("\n")
+
+    # # Remove the columns
+    # x_train = x_train.drop(columns = list(columns_to_drop_corr_target))
+    # x_test = x_test.drop(columns = list(columns_to_drop_corr_target))
+
+    # # Print the final features of the model
+    # print("Final features of the model:")
+    # print(list(x_train.columns))
+    # print("\n")
+
+    # # We evaluate the model after feature selection based on correlation with the target variable
+    # model = XGBClassifier(seed=42)
+    # model.fit(x_train, y_train)
+
+    # # Performance on the test set
+    # y_test_pred = model.predict(x_test)
+    # y_test_proba = model.predict_proba(x_test)[:, 1]
+
+    # # Compute ROC-AUC, accuracy score, Brier score and PR-AUC score
+    # print("Model performance after feature selection based on correlation with target")
+    # print("ROC AUC Score: ", roc_auc_score(y_test, y_test_proba))
+    # print("Brier score:", brier_score_loss(y_test, y_test_proba))
+    # print("Average precision:", precision_score(y_test, y_test_pred))
+    # print("Average Recall:", recall_score(y_test, y_test_pred))
+    # print("Accuracy Score: ",accuracy_score(y_test, y_test_pred))
+    # precision_test, recall_test, _ = precision_recall_curve(y_test, y_test_pred)
+    # print("AUC-PR score:", auc(recall_test, precision_test))
+    # print("\n")
+
+    # #############################################
+    # # Section removed because the best hyperparameters were found
+    # #############################################
+    # # # Then we do hyperparameter tuning with Bayesian optimization
+    # # # We define the hyperparameters to tune
+    # # search_spaces = {
+    # #     'learning_rate': Real(0.01, 0.5),
+    # #     'n_estimators': Integer(50, 1000),
+    # #     'max_depth': Integer(3, 10),
+    # #     'min_child_weight': Integer(1, 10),
+    # #     'subsample': Real(0.5, 1),
+    # #     'colsample_bytree': Real(0.01, 1),
+    # #     'gamma': Real(0, 1),
+    # #     'reg_alpha': Real(0, 1),
+    # #     'reg_lambda': Real(0, 1),
+    # # }
+    # # # We define the model
+    # # model = XGBClassifier(seed=42)
+    # # # We define the search
+    # # search = BayesSearchCV(model, search_spaces, n_iter=100, n_jobs=1, cv=3, random_state=40, scoring='average_precision')
+    # # # We fit the search
+    # # search.fit(x_train, y_train)
+    # # # We print the best parameters
+    # # print("Model parameters after hyperparameter tuning:")
+    # # print(search.best_params_)
+    # # # We evaluate the model
+    # # model = search.best_estimator_
+    # # y_test_pred = model.predict(x_test)
+    # # y_test_proba = model.predict_proba(x_test)[:, 1]
+
+    # # # Compute ROC-AUC, accuracy score, Brier score and PR-AUC score
+    # # print("Model performance after hyperparameter tuning")
+    # # print("ROC AUC Score: ", roc_auc_score(y_test, y_test_proba))
+    # # print("Brier score:", brier_score_loss(y_test, y_test_proba))
+    # # print("Average precision:", precision_score(y_test, y_test_pred))
+    # # print("Average Recall:", recall_score(y_test, y_test_pred))
+    # # print("Accuracy Score: ",accuracy_score(y_test, y_test_pred))
+    # # precision_test, recall_test, _ = precision_recall_curve(y_test, y_test_pred)
+    # # print("AUC-PR score:", auc(recall_test, precision_test))
+    # # print("\n")
+
+    # # # Save the model
+    # # pickle.dump(model, open(os.path.join(output_folder, 'survival_model_no_deadline_fewer_features'), 'wb'))
+
+    # #############################################
+    # #############################################
+
+    # # We now test a model with the following parameters (found with Bayesian optimization): 
+    # # [('colsample_bytree', 0.01), ('gamma', 0.479917457783544), ('learning_rate', 0.5), ('max_depth', 10), ('min_child_weight', 1), 
+    # # ('n_estimators', 50), ('reg_alpha', 0.4265448487839457), ('reg_lambda', 1.0), ('subsample', 0.8001997191867042)])
+    # model = XGBClassifier(colsample_bytree=0.01, gamma=0.479917457783544, learning_rate=0.5, max_depth=10, min_child_weight=1, n_estimators=50,
+    #                        reg_alpha=0.4265448487839457, reg_lambda=1.0, subsample=0.8001997191867042, seed=42)
+    # model.fit(x_train, y_train)
+
+    # # Performance on the test set
+    # y_test_pred = model.predict(x_test)
+    # y_test_proba = model.predict_proba(x_test)[:, 1]
+
+    # # Compute ROC-AUC, accuracy score, Brier score and PR-AUC score
+    # print("Model performance with the hyperparameter found with Bayesian Optimisation")
     # print("ROC AUC Score: ", roc_auc_score(y_test, y_test_proba))
     # print("Brier score:", brier_score_loss(y_test, y_test_proba))
     # print("Average precision:", precision_score(y_test, y_test_pred))
@@ -418,12 +446,45 @@ def main():
 
     #############################################
     #############################################
+    # In this section we explore using another site for testing and comparing the model performances
+    # Site counts: 
+    # H    77 : not possible for testing
+    # V    27 : testing ok (17%)
+    # L    21 : testing ok (13%)
+    # D    16 : testing ok (10%)
+    # R    14 : testing ok (9%)
+    # T     8 : too small for testing (5%)
+    
+    # First try let's try with site 'L'
+    # We split the data into training and testing sets
+    data_grouped['train_test'] = data_grouped['site'].apply(lambda x: 'train' if x != 'L' else 'test')
 
-    # We now test a model with the following parameters (found with Bayesian optimization): 
-    # [('colsample_bytree', 0.01), ('gamma', 0.479917457783544), ('learning_rate', 0.5), ('max_depth', 10), ('min_child_weight', 1), 
-    # ('n_estimators', 50), ('reg_alpha', 0.4265448487839457), ('reg_lambda', 1.0), ('subsample', 0.8001997191867042)])
-    model = XGBClassifier(colsample_bytree=0.01, gamma=0.479917457783544, learning_rate=0.5, max_depth=10, min_child_weight=1, n_estimators=50,
-                           reg_alpha=0.4265448487839457, reg_lambda=1.0, subsample=0.8001997191867042, seed=42)
+    clinical_features = ['sexe', 'age', 'BMI', 'score_charlson', 'OMS', 'tabac', 'tabac_PA', 'tabac_sevre', 'histo', 'T', 'centrale', 'dose_tot', 'etalement',
+                         'vol_GTV', 'vol_PTV', 'vol_ITV', 'couv_PTV', 'BED_10']
+    # We keep some radiomics features: selected here: 
+    radiomics_features = ['INTENSITY-BASED_MeanIntensity', 'INTENSITY-BASED_IntensitySkewness', 'INTENSITY-BASED_IntensityKurtosis', 'INTENSITY-BASED_10thIntensityPercentile',          
+                         'INTENSITY-BASED_AreaUnderCurveCIVH', 'INTENSITY-BASED_RootMeanSquareIntensity', 'INTENSITY-HISTOGRAM_IntensityHistogramMean',       
+                         'INTENSITY-HISTOGRAM_IntensityHistogramVariance', 'NGTDM_Complexity', 'NGTDM_Strength']
+    # Join the two lists
+    x = data_grouped[['sexe', 'BMI', 'score_charlson', 'tabac_sevre', 'dose_tot', 'etalement', 'vol_GTV', 'BED_10', 'INTENSITY-BASED_MeanIntensity',
+                       'INTENSITY-BASED_IntensitySkewness', 'INTENSITY-BASED_IntensityKurtosis', 'INTENSITY-BASED_AreaUnderCurveCIVH', 'INTENSITY-BASED_RootMeanSquareIntensity', 
+                       'INTENSITY-HISTOGRAM_IntensityHistogramMean', 'INTENSITY-HISTOGRAM_IntensityHistogramVariance', 'NGTDM_Strength'] + ['train_test']]
+    y = data_grouped[['DC', 'train_test']]
+    # We replace all nan values by 0 in 'DC'
+    y.fillna(0, inplace=True)
+
+    # Split the data into training and testing sets
+    x_train = x[x['train_test'] == 'train'].drop(columns=['train_test'])
+    x_test = x[x['train_test'] == 'test'].drop(columns=['train_test'])
+    y_train = y[y['train_test'] == 'train'].drop(columns=['train_test'])
+    y_train = y_train['DC']
+    y_test = y[y['train_test'] == 'test'].drop(columns=['train_test'])
+    y_test = y_test['DC']
+
+    print(x_train.columns)
+
+    # Initialise the model
+    model = XGBClassifier(seed=42)
     model.fit(x_train, y_train)
 
     # Performance on the test set
@@ -441,8 +502,147 @@ def main():
     print("AUC-PR score:", auc(recall_test, precision_test))
     print("\n")
 
-    # Save the model
-    pickle.dump(model, open(os.path.join(output_folder, 'survival_model_no_deadline_fewer_features'), 'wb'))
+    #############################################
+    # Now we try with site 'D'
+    data_grouped['train_test'] = data_grouped['site'].apply(lambda x: 'train' if x != 'D' else 'test')
+
+    clinical_features = ['sexe', 'age', 'BMI', 'score_charlson', 'OMS', 'tabac', 'tabac_PA', 'tabac_sevre', 'histo', 'T', 'centrale', 'dose_tot', 'etalement',
+                         'vol_GTV', 'vol_PTV', 'vol_ITV', 'couv_PTV', 'BED_10']
+    # We keep some radiomics features: selected here: 
+    radiomics_features = ['INTENSITY-BASED_MeanIntensity', 'INTENSITY-BASED_IntensitySkewness', 'INTENSITY-BASED_IntensityKurtosis', 'INTENSITY-BASED_10thIntensityPercentile',          
+                         'INTENSITY-BASED_AreaUnderCurveCIVH', 'INTENSITY-BASED_RootMeanSquareIntensity', 'INTENSITY-HISTOGRAM_IntensityHistogramMean',       
+                         'INTENSITY-HISTOGRAM_IntensityHistogramVariance', 'NGTDM_Complexity', 'NGTDM_Strength']
+    # Join the two lists
+    x = data_grouped[['sexe', 'BMI', 'score_charlson', 'tabac_sevre', 'dose_tot', 'etalement', 'vol_GTV', 'BED_10', 'INTENSITY-BASED_MeanIntensity',
+                       'INTENSITY-BASED_IntensitySkewness', 'INTENSITY-BASED_IntensityKurtosis', 'INTENSITY-BASED_AreaUnderCurveCIVH', 'INTENSITY-BASED_RootMeanSquareIntensity', 
+                       'INTENSITY-HISTOGRAM_IntensityHistogramMean', 'INTENSITY-HISTOGRAM_IntensityHistogramVariance', 'NGTDM_Strength'] + ['train_test']]
+    y = data_grouped[['DC', 'train_test']]
+    # We replace all nan values by 0 in 'DC'
+    y.fillna(0, inplace=True)
+
+    # Split the data into training and testing sets
+    x_train = x[x['train_test'] == 'train'].drop(columns=['train_test'])
+    x_test = x[x['train_test'] == 'test'].drop(columns=['train_test'])
+    y_train = y[y['train_test'] == 'train'].drop(columns=['train_test'])
+    y_train = y_train['DC']
+    y_test = y[y['train_test'] == 'test'].drop(columns=['train_test'])
+    y_test = y_test['DC']
+
+    print(x_train.columns)
+
+    # Initialise the model
+    model = XGBClassifier(seed=42)
+    model.fit(x_train, y_train)
+
+    # Performance on the test set
+    y_test_pred = model.predict(x_test)
+    y_test_proba = model.predict_proba(x_test)[:, 1]
+
+    # Compute ROC-AUC, accuracy score, Brier score and PR-AUC score
+    print("Model performance with the hyperparameter found with Bayesian Optimisation")
+    print("ROC AUC Score: ", roc_auc_score(y_test, y_test_proba))
+    print("Brier score:", brier_score_loss(y_test, y_test_proba))
+    print("Average precision:", precision_score(y_test, y_test_pred))
+    print("Average Recall:", recall_score(y_test, y_test_pred))
+    print("Accuracy Score: ",accuracy_score(y_test, y_test_pred))
+    precision_test, recall_test, _ = precision_recall_curve(y_test, y_test_pred)
+    print("AUC-PR score:", auc(recall_test, precision_test))
+    print("\n")
+
+    #############################################
+    # Now we try with site 'R'
+    data_grouped['train_test'] = data_grouped['site'].apply(lambda x: 'train' if x != 'R' else 'test')
+
+    clinical_features = ['sexe', 'age', 'BMI', 'score_charlson', 'OMS', 'tabac', 'tabac_PA', 'tabac_sevre', 'histo', 'T', 'centrale', 'dose_tot', 'etalement',
+                         'vol_GTV', 'vol_PTV', 'vol_ITV', 'couv_PTV', 'BED_10']
+    # We keep some radiomics features: selected here: 
+    radiomics_features = ['INTENSITY-BASED_MeanIntensity', 'INTENSITY-BASED_IntensitySkewness', 'INTENSITY-BASED_IntensityKurtosis', 'INTENSITY-BASED_10thIntensityPercentile',          
+                         'INTENSITY-BASED_AreaUnderCurveCIVH', 'INTENSITY-BASED_RootMeanSquareIntensity', 'INTENSITY-HISTOGRAM_IntensityHistogramMean',       
+                         'INTENSITY-HISTOGRAM_IntensityHistogramVariance', 'NGTDM_Complexity', 'NGTDM_Strength']
+    # Join the two lists
+    x = data_grouped[['sexe', 'BMI', 'score_charlson', 'tabac_sevre', 'dose_tot', 'etalement', 'vol_GTV', 'BED_10', 'INTENSITY-BASED_MeanIntensity',
+                       'INTENSITY-BASED_IntensitySkewness', 'INTENSITY-BASED_IntensityKurtosis', 'INTENSITY-BASED_AreaUnderCurveCIVH', 'INTENSITY-BASED_RootMeanSquareIntensity', 
+                       'INTENSITY-HISTOGRAM_IntensityHistogramMean', 'INTENSITY-HISTOGRAM_IntensityHistogramVariance', 'NGTDM_Strength'] + ['train_test']]
+    y = data_grouped[['DC', 'train_test']]
+    # We replace all nan values by 0 in 'DC'
+    y.fillna(0, inplace=True)
+
+    # Split the data into training and testing sets
+    x_train = x[x['train_test'] == 'train'].drop(columns=['train_test'])
+    x_test = x[x['train_test'] == 'test'].drop(columns=['train_test'])
+    y_train = y[y['train_test'] == 'train'].drop(columns=['train_test'])
+    y_train = y_train['DC']
+    y_test = y[y['train_test'] == 'test'].drop(columns=['train_test'])
+    y_test = y_test['DC']
+
+    print(x_train.columns)
+
+    # Initialise the model
+    model = XGBClassifier(seed=42)
+    model.fit(x_train, y_train)
+
+    # Performance on the test set
+    y_test_pred = model.predict(x_test)
+    y_test_proba = model.predict_proba(x_test)[:, 1]
+
+    # Compute ROC-AUC, accuracy score, Brier score and PR-AUC score
+    print("Model performance with the hyperparameter found with Bayesian Optimisation")
+    print("ROC AUC Score: ", roc_auc_score(y_test, y_test_proba))
+    print("Brier score:", brier_score_loss(y_test, y_test_proba))
+    print("Average precision:", precision_score(y_test, y_test_pred))
+    print("Average Recall:", recall_score(y_test, y_test_pred))
+    print("Accuracy Score: ",accuracy_score(y_test, y_test_pred))
+    precision_test, recall_test, _ = precision_recall_curve(y_test, y_test_pred)
+    print("AUC-PR score:", auc(recall_test, precision_test))
+    print("\n")
+
+    #############################################
+    # Now we try with site 'T' or 'R'
+    data_grouped['train_test'] = data_grouped['site'].apply(lambda x: 'train' if (x != 'T' and x!='R') else 'test')
+
+    clinical_features = ['sexe', 'age', 'BMI', 'score_charlson', 'OMS', 'tabac', 'tabac_PA', 'tabac_sevre', 'histo', 'T', 'centrale', 'dose_tot', 'etalement',
+                         'vol_GTV', 'vol_PTV', 'vol_ITV', 'couv_PTV', 'BED_10']
+    # We keep some radiomics features: selected here: 
+    radiomics_features = ['INTENSITY-BASED_MeanIntensity', 'INTENSITY-BASED_IntensitySkewness', 'INTENSITY-BASED_IntensityKurtosis', 'INTENSITY-BASED_10thIntensityPercentile',          
+                         'INTENSITY-BASED_AreaUnderCurveCIVH', 'INTENSITY-BASED_RootMeanSquareIntensity', 'INTENSITY-HISTOGRAM_IntensityHistogramMean',       
+                         'INTENSITY-HISTOGRAM_IntensityHistogramVariance', 'NGTDM_Complexity', 'NGTDM_Strength']
+    # Join the two lists
+    x = data_grouped[['sexe', 'BMI', 'score_charlson', 'tabac_sevre', 'dose_tot', 'etalement', 'vol_GTV', 'BED_10', 'INTENSITY-BASED_MeanIntensity',
+                       'INTENSITY-BASED_IntensitySkewness', 'INTENSITY-BASED_IntensityKurtosis', 'INTENSITY-BASED_AreaUnderCurveCIVH', 'INTENSITY-BASED_RootMeanSquareIntensity', 
+                       'INTENSITY-HISTOGRAM_IntensityHistogramMean', 'INTENSITY-HISTOGRAM_IntensityHistogramVariance', 'NGTDM_Strength'] + ['train_test']]
+    y = data_grouped[['DC', 'train_test']]
+    # We replace all nan values by 0 in 'DC'
+    y.fillna(0, inplace=True)
+
+    # Split the data into training and testing sets
+    x_train = x[x['train_test'] == 'train'].drop(columns=['train_test'])
+    x_test = x[x['train_test'] == 'test'].drop(columns=['train_test'])
+    y_train = y[y['train_test'] == 'train'].drop(columns=['train_test'])
+    y_train = y_train['DC']
+    y_test = y[y['train_test'] == 'test'].drop(columns=['train_test'])
+    y_test = y_test['DC']
+
+    print(x_train.columns)
+
+    # Initialise the model
+    model = XGBClassifier(seed=42)
+    model.fit(x_train, y_train)
+
+    # Performance on the test set
+    y_test_pred = model.predict(x_test)
+    y_test_proba = model.predict_proba(x_test)[:, 1]
+
+    # Compute ROC-AUC, accuracy score, Brier score and PR-AUC score
+    print("Model performance with the hyperparameter found with Bayesian Optimisation")
+    print("ROC AUC Score: ", roc_auc_score(y_test, y_test_proba))
+    print("Brier score:", brier_score_loss(y_test, y_test_proba))
+    print("Average precision:", precision_score(y_test, y_test_pred))
+    print("Average Recall:", recall_score(y_test, y_test_pred))
+    print("Accuracy Score: ",accuracy_score(y_test, y_test_pred))
+    precision_test, recall_test, _ = precision_recall_curve(y_test, y_test_pred)
+    print("AUC-PR score:", auc(recall_test, precision_test))
+    print("\n")
+    #############################################
 
     return None
 
