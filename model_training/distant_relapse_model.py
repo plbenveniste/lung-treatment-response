@@ -83,6 +83,7 @@ def main():
     #             print(column)
     #             # print(data_patient[column].unique())
     #             print("\n")
+    data_grouped['train_test'] = data_grouped['subject_id'].apply(lambda x: 'train' if x[0] != 'V' else 'test')
 
     # For all values in the 'rechute' columns, we replace values above 0 by 1 and the rest is 0
     data_grouped['rechute_homo'] = data_grouped['rechute_homo'].apply(lambda x: 1 if x > 0 else 0)
@@ -99,12 +100,12 @@ def main():
     data_grouped['rechute_dist_moy_delai'] = data_grouped[['delai_fin_rechuteHomo','delai_fin_rechuteMed','delai_fin_rechuteContro', 'delai_fin_rechuteHorspoum']].mean(axis=1)
 
     # Split into features and target
-    y = data_grouped[['rechute_dist','rechute_dist_moy_delai']]
+    y = data_grouped[['rechute_dist','rechute_dist_moy_delai', 'train_test']]
     x = data_grouped.drop(columns=['rechute_homo', 'rechute_med', 'rechute_contro', 'rechute_horspoum', 'delai_fin_rechuteHomo',
                                    'delai_fin_rechuteMed','delai_fin_rechuteContro', 'delai_fin_rechuteHorspoum', 'subject_id', 'rechute_dist','rechute_dist_moy_delai'])
     
     # In this case, because we are only interested in the prediction of survival, we extract only the 'DC'
-    y = y[['rechute_dist']]
+    y = y[['rechute_dist', 'train_test']]
     # We replace all nan values by 0 in 'DC'
     y.fillna(0, inplace=True)
 
@@ -114,7 +115,11 @@ def main():
     print("Number of subjects which had a distant relapse:", y[y['rechute_dist']==1].shape[0])
 
     # Split the data into training and testing sets
-    x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=0.2, random_state=1)
+    x_train = x[x['train_test'] == 'train'].drop(columns=['train_test'])
+    x_test = x[x['train_test'] == 'test'].drop(columns=['train_test'])
+    y_train = y[y['train_test'] == 'train'].drop(columns=['train_test'])
+    y_test = y[y['train_test'] == 'test'].drop(columns=['train_test'])
+    # x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=0.2, random_state=1)
     print("\nNumber of subject for training:", x_train.shape[0])
     print("Number of subject for testing:", x_test.shape[0])
     print("\n")
@@ -124,7 +129,7 @@ def main():
     plt.title('Distribution of distant relapse time between end of treatment and\n occurence of a relapse (in days) for those that relapsed')
     plt.xlabel('Time')
     plt.ylabel('Number of subjects')
-    plt.show()
+    # plt.show()
 
     # Initialise the model
     model = XGBClassifier(seed=42)
@@ -151,13 +156,14 @@ def main():
     #############################################
     #############################################
     # Now we consider that every person that had a distant relapse after 1 year is considered as not having a distant relapse
-    y_deadline_1_year = data_grouped[['rechute_dist_moy_delai']]
+    y_deadline_1_year = data_grouped[['rechute_dist_moy_delai', 'train_test']]
     y_deadline_1_year.fillna(366, inplace=True)
     y_deadline_1_year['rechute_dist_moy_delai'] = y_deadline_1_year['rechute_dist_moy_delai'].apply(lambda x: 0 if x > 365 else 1)
     print("Number of subjects that had a distant relapse within 1 year:", y_deadline_1_year[y_deadline_1_year['rechute_dist_moy_delai'] == 1].shape[0])
 
     # Split the data into training and testing sets
-    x_train, x_test, y_train, y_test = train_test_split(x, y_deadline_1_year, test_size=0.2, random_state=1)
+    y_train = y_deadline_1_year[y_deadline_1_year['train_test'] == 'train'].drop(columns=['train_test'])
+    y_test = y_deadline_1_year[y_deadline_1_year['train_test'] == 'test'].drop(columns=['train_test'])
     print("Number of subjects that had a distant relapse within 1 year (train):", y_train[y_train['rechute_dist_moy_delai'] == 1].shape[0])
     print("Number of subjects that had a distant relapse within 1 year (test):", y_test[y_test['rechute_dist_moy_delai'] == 1].shape[0])  
 
@@ -186,13 +192,14 @@ def main():
     #############################################
     #############################################
     # Now we consider that every person that had a distant relapse after 3 years is considered as not having a distant relapse
-    y_deadline_3_year = data_grouped[['rechute_dist_moy_delai']]
+    y_deadline_3_year = data_grouped[['rechute_dist_moy_delai', 'train_test']]
     y_deadline_3_year.fillna(1096, inplace=True)
     y_deadline_3_year['rechute_dist_moy_delai'] = y_deadline_3_year['rechute_dist_moy_delai'].apply(lambda x: 0 if x > 1095 else 1)
     print("Number of subjects that had a distant relapse within 3 year:", y_deadline_3_year[y_deadline_3_year['rechute_dist_moy_delai'] == 1].shape[0])
 
     # Split the data into training and testing sets
-    x_train, x_test, y_train, y_test = train_test_split(x, y_deadline_3_year, test_size=0.2, random_state=1)
+    y_train = y_deadline_3_year[y_deadline_3_year['train_test'] == 'train'].drop(columns=['train_test'])
+    y_test = y_deadline_3_year[y_deadline_3_year['train_test'] == 'test'].drop(columns=['train_test'])
     print("\nNumber of subjects that had a distant relapse within 3 year (train):", y_train[y_train['rechute_dist_moy_delai'] == 1].shape[0])
     print("Number of subjects that had a distant relapse within 3 year (test):", y_test[y_test['rechute_dist_moy_delai'] == 1].shape[0])   
 
@@ -212,20 +219,6 @@ def main():
     print("Average Recall:", recall_score(y_test, y_test_pred))
     print("Accuracy Score:",accuracy_score(y_test, y_test_pred))
     precision_test, recall_test, _ = precision_recall_curve(y_test, y_test_pred)
-    print("AUC-PR score:", auc(recall_test, precision_test))
-    print("\n")
-
-    # Evaluate the model on the train set
-    y_train_pred = model.predict(x_train)
-    y_train_proba = model.predict_proba(x_train)[:, 1]
-
-    print("Model performance on the deadline of 3 year on the train set")
-    print("ROC AUC Score:", roc_auc_score(y_train, y_train_proba))
-    print("Brier score:", brier_score_loss(y_train, y_train_proba))
-    print("Average precision:", precision_score(y_train, y_train_pred))
-    print("Average Recall:", recall_score(y_train, y_train_pred))
-    print("Accuracy Score:",accuracy_score(y_train, y_train_pred))
-    precision_test, recall_test, _ = precision_recall_curve(y_train, y_train_pred)
     print("AUC-PR score:", auc(recall_test, precision_test))
     print("\n")
 
