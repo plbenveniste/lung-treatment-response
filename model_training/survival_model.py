@@ -577,9 +577,8 @@ def main():
     print("\n")
 
     # Save the model
-    pickle.dump(model, open(os.path.join(output_folder, 'survival_model_no_deadline_fewer_features'), 'wb'))
+    pickle.dump(model, open(os.path.join(output_folder, 'survival_model_1_year_fewer_features'), 'wb'))
     
-
     return None
 
 
