@@ -386,7 +386,11 @@ def main():
     print("AUC-PR score:", auc(recall_test, precision_test))
     # Print confusion matrix
     print("Confusion matrix:")
-    print(confusion_matrix(y_test, y_test_pred))
+    tn, fp, fn, tp = confusion_matrix(y_test, y_test_pred).ravel()
+    print("TN:", tn)
+    print("FP:", fp)
+    print("FN:", fn)
+    print("TP:", tp)
     print("\n")
 
     ########################################################################
@@ -432,7 +436,11 @@ def main():
     # print("AUC-PR score:", auc(recall_test, precision_test))
     # # Print confusion matrix
     # print("Confusion matrix:")
-    # print(confusion_matrix(y_test, y_test_pred))
+    # tn, fp, fn, tp = confusion_matrix(y_test, y_test_pred).ravel()
+    # print("TN:", tn)
+    # print("FP:", fp)
+    # print("FN:", fn)
+    # print("TP:", tp)
     # print("\n")
 
     # # Save the model
@@ -503,8 +511,12 @@ def main():
     print("AUC-PR score:", auc(recall_test, precision_test))
     # Print confusion matrix
     print("Confusion matrix:")
-    print(confusion_matrix(y_test, y_test_pred))
-    print("\n") 
+    tn, fp, fn, tp = confusion_matrix(y_test, y_test_pred).ravel()
+    print("TN:", tn)
+    print("FP:", fp)
+    print("FN:", fn)
+    print("TP:", tp)
+    print("\n")
 
 
     # Commented because the best hyperparameters were found
@@ -574,6 +586,12 @@ def main():
     print("Accuracy Score: ",accuracy_score(y_test, y_test_pred))
     precision_test, recall_test, _ = precision_recall_curve(y_test, y_test_pred)
     print("AUC-PR score:", auc(recall_test, precision_test))
+    print("Confusion matrix:")
+    tn, fp, fn, tp = confusion_matrix(y_test, y_test_pred).ravel()
+    print("TN:", tn)
+    print("FP:", fp)
+    print("FN:", fn)
+    print("TP:", tp)
     print("\n")
 
     # Save the model
