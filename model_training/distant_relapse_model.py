@@ -43,7 +43,7 @@ def parse_args():
 def main():
     """
     This is the main function of the script. 
-    It does the training and evaluation of the survival model.
+    It does the training and evaluation of the distant relapse model.
     """
 
     # We parse the arguments
@@ -105,7 +105,7 @@ def main():
     x = data_grouped.drop(columns=['rechute_homo', 'rechute_med', 'rechute_contro', 'rechute_horspoum', 'delai_fin_rechuteHomo',
                                    'delai_fin_rechuteMed','delai_fin_rechuteContro', 'delai_fin_rechuteHorspoum', 'subject_id', 'rechute_dist','rechute_dist_moy_delai'])
     
-    # In this case, because we are only interested in the prediction of survival, we extract only the 'DC'
+    # In this case, because we are only interested in the prediction of distant relapse, we extract only the 'DC'
     y = y[['rechute_dist', 'train_test']]
     # We replace all nan values by 0 in 'DC'
     y.fillna(0, inplace=True)
