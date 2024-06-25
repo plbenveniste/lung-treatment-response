@@ -22,7 +22,7 @@ import os
 from pathlib import Path
 from sklearn.model_selection import train_test_split
 from xgboost import XGBClassifier
-from sklearn.metrics import roc_auc_score, auc, brier_score_loss, precision_recall_curve, accuracy_score, roc_curve, precision_score, recall_score
+from sklearn.metrics import roc_auc_score, auc, brier_score_loss, precision_recall_curve, accuracy_score, roc_curve, precision_score, recall_score, confusion_matrix
 from skopt.space import Real, Integer
 from skopt import BayesSearchCV
 import matplotlib.pyplot as plt
@@ -43,7 +43,7 @@ def parse_args():
 def main():
     """
     This is the main function of the script. 
-    It does the training and evaluation of the survival model.
+    It does the training and evaluation of the local relapse model.
     """
 
     # We parse the arguments
@@ -51,11 +51,15 @@ def main():
     input_data = args.input
     output_folder = args.output
 
+    ########################################################################
+    ############## DATA PRE-PROCESSING #####################################
+    ########################################################################
+
     # Load the dataset
     data = pd.read_csv(input_data)
 
     # We find the splitting of the data based on the site they come from
-    data['train_test'] = data['subject_id'].apply(lambda x: 'train' if x[0] != 'V' else 'test')
+    data['train_test'] = data['subject_id'].apply(lambda x: 'train' if x[0] != 'L' else 'test')
 
     # Split into features and target
     y = data[['DC', 'DDD', 'cause_DC', 'Date_R_PTV', 'Date_R_homo', 'Date_R_med', 'Date_R_contro', 'Date_R_horspoum', 'Reponse', 'rechute_PTV', 'rechute_homo',
@@ -67,14 +71,14 @@ def main():
     # Remove also useless columns:
     x = x.drop(columns=['subject_nodule', 'subject_id', 'nodule'])
     
-    # In this case, because we are only interested in the prediction of relapse in the PTV (Planning Target Volume) survival, we extract only the 'rechute_PTV'
+    # In this case, because we are only interested in the prediction of relapse in the PTV (Planning Target Volume), we extract only the 'rechute_PTV'
     y = y[['rechute_PTV', 'train_test']]    
 
     # Describe x and y
     print('Feature data shape:', x.shape)
     print('Target data shape:', y.shape)
     print("Number of subjects which had a local relapse", y[y['rechute_PTV']==1].shape[0])
-
+ 
     # Split the data into training and testing sets
     x_train = x[x['train_test'] == 'train'].drop(columns=['train_test'])
     x_test = x[x['train_test'] == 'test'].drop(columns=['train_test'])
@@ -98,6 +102,10 @@ def main():
     plt.ylabel('Time')
     # plt.show()
 
+    ########################################################################
+    ############## MODEL TRAINING NO DEADLINE  #############################
+    ########################################################################
+
     # Initialise the model
     model = XGBClassifier(seed=42)
     model.fit(x_train, y_train)
@@ -120,8 +128,9 @@ def main():
     # Save the model
     pickle.dump(model, open(os.path.join(output_folder, 'local_relapse_model'), 'wb'))
 
-    #############################################
-    #############################################
+    ########################################################################
+    ############## FEATURE SELECTION  ######################################
+    ########################################################################
     # Now we move on to training the model with no deadline with fewer features based on what we explored in file `data_preprocessing/5_eliminating_radiomics_features.py` 
     # We keep the clinical features
     clinical_features = ['sexe', 'age', 'BMI', 'score_charlson', 'OMS', 'tabac', 'tabac_PA', 'tabac_sevre', 'histo', 'T', 'centrale', 'dose_tot', 'etalement',
@@ -273,23 +282,31 @@ def main():
     print("Accuracy Score: ",accuracy_score(y_test, y_test_pred))
     precision_test, recall_test, _ = precision_recall_curve(y_test, y_test_pred)
     print("AUC-PR score:", auc(recall_test, precision_test))
+    # Print confusion matrix
+    print("Confusion matrix:")
+    tn, fp, fn, tp = confusion_matrix(y_test, y_test_pred).ravel()
+    print("TN:", tn)
+    print("FP:", fp)
+    print("FN:", fn)
+    print("TP:", tp)
     print("\n")
 
-    # ################################################################
-    # # Section removed because the best hyperparameters were already found
-    # ################################################################
+    ########################################################################
+    ############## HYPERPARAMETER FINETUNING NO DEADLINE  ##################
+    ########################################################################
+    # Section removed because the best hyperparameters were already found
     # # Then we do hyperparameter tuning with Bayesian optimization
     # # We define the hyperparameters to tune
     # search_spaces = {
     #     'learning_rate': Real(0.01, 0.5),
     #     'n_estimators': Integer(50, 1000),
     #     'max_depth': Integer(3, 10),
-    #     'min_child_weight': Integer(1, 10),
+    #     # 'min_child_weight': Integer(1, 10),
     #     'subsample': Real(0.5, 1),
     #     'colsample_bytree': Real(0.01, 1),
-    #     'gamma': Real(0, 1),
-    #     'reg_alpha': Real(0, 1),
-    #     'reg_lambda': Real(0, 1),
+    #     # 'gamma': Real(0, 1),
+    #     # 'reg_alpha': Real(0, 1),
+    #     # 'reg_lambda': Real(0, 1),
     # }
     # # We define the model
     # model = XGBClassifier(seed=42)
@@ -314,17 +331,26 @@ def main():
     # print("Accuracy Score: ",accuracy_score(y_test, y_test_pred))
     # precision_test, recall_test, _ = precision_recall_curve(y_test, y_test_pred)
     # print("AUC-PR score:", auc(recall_test, precision_test))
+    # # Print confusion matrix
+    # print("Confusion matrix:")
+    # tn, fp, fn, tp = confusion_matrix(y_test, y_test_pred).ravel()
+    # print("TN:", tn)
+    # print("FP:", fp)
+    # print("FN:", fn)
+    # print("TP:", tp)
     # print("\n")
 
-    # # # Save the model
-    # # pickle.dump(model, open(os.path.join(output_folder, 'distant_relapse_model_no_deadline_fewer_features'), 'wb'))
+    # # Save the model
+    # pickle.dump(model, open(os.path.join(output_folder, 'local_relapse_model_no_deadline_fewer_features'), 'wb'))
 
-    # We now train the best model with the best hyperparameters:
-    # [('colsample_bytree', 0.17695837848074708), ('gamma', 0.777502835292614), ('learning_rate', 0.19502628035861164), ('max_depth', 6),
-    #  ('min_child_weight', 10), ('n_estimators', 216), ('reg_alpha', 0.940261180174747), ('reg_lambda', 0.956746376481371), ('subsample', 0.8424326661923682)])
+    ########################################################################
+    ### MODEL TRAINING NO DEADLINE FEWER FEATURES WITH OPTIMISED PARAM  ####
+    ########################################################################
 
-    model = XGBClassifier(colsample_bytree=0.17695837848074708, gamma=0.777502835292614, learning_rate=0.19502628035861164, max_depth=6,
-                            min_child_weight=10, n_estimators=216, reg_alpha=0.940261180174747, reg_lambda=0.956746376481371, subsample=0.8424326661923682, seed=42)
+    # # We now train the best model with the best hyperparameters:
+    # [('colsample_bytree', 0.22046969589628704), ('learning_rate', 0.13636346144701486), ('max_depth', 10), ('n_estimators', 101), ('subsample', 0.5)])
+
+    model = XGBClassifier(colsample_bytree=0.22046969589628704, learning_rate=0.13636346144701486, max_depth=10, n_estimators=101, subsample=0.5, seed=42)
     model.fit(x_train, y_train)
 
     # Performance on the test set
@@ -340,9 +366,151 @@ def main():
     print("Accuracy Score: ",accuracy_score(y_test, y_test_pred))
     precision_test, recall_test, _ = precision_recall_curve(y_test, y_test_pred)
     print("AUC-PR score:", auc(recall_test, precision_test))
+    # Print confusion matrix
+    print("Confusion matrix:")
+    tn, fp, fn, tp = confusion_matrix(y_test, y_test_pred).ravel()
+    print("TN:", tn)
+    print("FP:", fp)
+    print("FN:", fn)
+    print("TP:", tp)
+    print("\n")
 
     # Save the model
     pickle.dump(model, open(os.path.join(output_folder, 'local_relapse_model_no_deadline_fewer_features'), 'wb'))
+
+    ########################################################################
+    ############## MODEL TRAINING 1 YEAR DEADLINE  #########################
+    ########################################################################
+
+    # We now do the same as the above with the deadline of 1 year
+    # Now we consider that every person that die after 1 year is considered as not dead (using the delai_fin_DC column)
+    y_deadline_1_year = data[['delai_fin_rechutePTV', 'train_test']]
+    y_deadline_1_year.fillna(366, inplace=True)
+    y_deadline_1_year['delai_fin_rechutePTV'] = y_deadline_1_year['delai_fin_rechutePTV'].apply(lambda x: 0 if x > 365 else 1)
+    print("Number of subjects that had a local relapse within 1 year:", y_deadline_1_year[y_deadline_1_year['delai_fin_rechutePTV'] == 1].shape[0])
+
+    # Split the data into training and testing sets
+    y_train = y_deadline_1_year[y_deadline_1_year['train_test'] == 'train'].drop(columns=['train_test'])
+    y_test = y_deadline_1_year[y_deadline_1_year['train_test'] == 'test'].drop(columns=['train_test'])
+    print("Number of subjects that had a local relapse within 1 year (train):", y_train[y_train['delai_fin_rechutePTV'] == 1].shape[0])
+    print("Number of subjects that had a local relapse within 1 year (test):", y_test[y_test['delai_fin_rechutePTV'] == 1].shape[0])
+    print("\n") 
+
+    # We evaluate the model after feature selection based on correlation with the target variable
+    model = XGBClassifier(seed=42)
+    model.fit(x_train, y_train)
+
+    # Performance on the test set
+    y_test_pred = model.predict(x_test)
+    y_test_proba = model.predict_proba(x_test)[:, 1]
+
+    # Compute ROC-AUC, accuracy score, Brier score and PR-AUC score
+    print("Model performance with fewer features with 1 year deadline")
+    print("ROC AUC Score: ", roc_auc_score(y_test, y_test_proba))
+    print("Brier score:", brier_score_loss(y_test, y_test_proba))
+    print("Average precision:", precision_score(y_test, y_test_pred))
+    print("Average Recall:", recall_score(y_test, y_test_pred))
+    print("Accuracy Score: ",accuracy_score(y_test, y_test_pred))
+    precision_test, recall_test, _ = precision_recall_curve(y_test, y_test_pred)
+    print("AUC-PR score:", auc(recall_test, precision_test))
+    # Print confusion matrix
+    print("Confusion matrix:")
+    tn, fp, fn, tp = confusion_matrix(y_test, y_test_pred).ravel()
+    print("TN:", tn)
+    print("FP:", fp)
+    print("FN:", fn)
+    print("TP:", tp)
+    print("\n")
+
+    ########################################################################
+    ####### BAYESIAN OPTIMISATION (1 YEAR, FEWER FEATURES)  ################
+    ######################################################################## 
+    # Commented because the best hyperparameters were found
+
+    # # Then we do hyperparameter tuning with Bayesian optimization
+    # # We define the hyperparameters to tune
+    # search_spaces = {
+    #     'learning_rate': Real(0.001, 0.5),
+    #     'n_estimators': Integer(10, 1000),
+    #     'max_depth': Integer(3, 10),
+    #     'min_child_weight': Integer(1, 10),
+    #     'subsample': Real(0.1, 1),
+    #     'colsample_bytree': Real(0.001, 1),
+    #     'gamma': Real(0, 1),
+    #     'reg_alpha': Real(0, 1),
+    #     'reg_lambda': Real(0, 1),
+    # }
+    # # We define the model
+    # model = XGBClassifier(seed=42)
+    # # We define the search
+    # search = BayesSearchCV(model, search_spaces, n_iter=100, n_jobs=1, cv=3, random_state=42, scoring='roc_auc')
+    # # We fit the search
+    # search.fit(x_train, y_train)
+    # # We print the best parameters
+    # print("Model parameters after hyperparameter tuning:")
+    # print(search.best_params_)
+    # print("\n")
+
+    # # We evaluate the model
+    # model = search.best_estimator_
+    # y_test_pred = model.predict(x_test)
+    # y_test_proba = model.predict_proba(x_test)[:, 1]
+
+    # # Compute ROC-AUC, accuracy score, Brier score and PR-AUC score
+    # print("Model performance after hyperparameter tuning (fewer features with 1 year deadline)")
+    # print("ROC AUC Score: ", roc_auc_score(y_test, y_test_proba))
+    # print("Brier score:", brier_score_loss(y_test, y_test_proba))
+    # print("Average precision:", precision_score(y_test, y_test_pred))
+    # print("Average Recall:", recall_score(y_test, y_test_pred))
+    # print("Accuracy Score: ",accuracy_score(y_test, y_test_pred))
+    # precision_test, recall_test, _ = precision_recall_curve(y_test, y_test_pred)
+    # print("AUC-PR score:", auc(recall_test, precision_test))
+    # # Print confusion matrix
+    # print("Confusion matrix:")
+    # tn, fp, fn, tp = confusion_matrix(y_test, y_test_pred).ravel()
+    # print("TN:", tn)
+    # print("FP:", fp)
+    # print("FN:", fn)
+    # print("TP:", tp)
+    # print("\n")
+
+    # # Save the model
+    # pickle.dump(model, open(os.path.join(output_folder, 'local_relapse_model_1_year_fewer_features'), 'wb'))
+
+    # ########################################################################
+    # ############## OPTIMISED MODEL TRAINING 1 YEAR DEADLINE ################
+    # ########################################################################
+
+    # # We now test a model with the following parameters (found with Bayesian optimization): 
+    # [('colsample_bytree', 0.9610794297994522), ('gamma', 0.16681461635915681), ('learning_rate', 0.4206879951778759), ('max_depth', 5), ('min_child_weight', 2),
+    #  ('n_estimators', 27), ('reg_alpha', 0.5496077688595062), ('reg_lambda', 0.8844214831212651), ('subsample', 0.7893889877395092)]
+    model = XGBClassifier(colsample_bytree=0.9610794297994522, gamma=0.16681461635915681, learning_rate=0.4206879951778759, max_depth=5, min_child_weight=2, n_estimators=27,
+                          reg_alpha=0.5496077688595062, reg_lambda=0.8844214831212651, subsample=0.7893889877395092, seed=42)
+    model.fit(x_train, y_train)
+
+    # Performance on the test set
+    y_test_pred = model.predict(x_test)
+    y_test_proba = model.predict_proba(x_test)[:, 1]
+
+    # Compute ROC-AUC, accuracy score, Brier score and PR-AUC score
+    print("Model performance with the hyperparameter found with Bayesian Optimisation (fewer features with 1 year deadline)")
+    print("ROC AUC Score: ", roc_auc_score(y_test, y_test_proba))
+    print("Brier score:", brier_score_loss(y_test, y_test_proba))
+    print("Average precision:", precision_score(y_test, y_test_pred))
+    print("Average Recall:", recall_score(y_test, y_test_pred))
+    print("Accuracy Score: ",accuracy_score(y_test, y_test_pred))
+    precision_test, recall_test, _ = precision_recall_curve(y_test, y_test_pred)
+    print("AUC-PR score:", auc(recall_test, precision_test))
+    print("Confusion matrix:")
+    tn, fp, fn, tp = confusion_matrix(y_test, y_test_pred).ravel()
+    print("TN:", tn)
+    print("FP:", fp)
+    print("FN:", fn)
+    print("TP:", tp)
+    print("\n")
+
+    # Save the model
+    pickle.dump(model, open(os.path.join(output_folder, 'local_relapse_model_1_year_fewer_features'), 'wb'))
 
     return None
 
