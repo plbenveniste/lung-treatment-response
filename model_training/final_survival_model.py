@@ -190,6 +190,16 @@ def main():
     # Save the model
     pickle.dump(model, open(os.path.join(output_folder, 'final_survival_model'), 'wb'))
 
+    # Using shapley libray we showcase the importance of the features and how they impact the model
+    import shap
+    shap.initjs()
+    explainer = shap.TreeExplainer(model)
+    shap_values = explainer.shap_values(x_train)
+    shap.summary_plot(shap_values, x_train, plot_type="bar")
+    shap.summary_plot(shap_values, x_train)
+    
+    
+
     return None
 
 
