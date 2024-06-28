@@ -4,3 +4,4 @@ xgboost==2.0.3
 scikit-optimize==0.10.2
 matplotlib==3.9.0
 prettytable==3.10.0
+shap==0.46.0
