@@ -27,6 +27,7 @@ from skopt import BayesSearchCV
 import matplotlib.pyplot as plt
 import pickle
 from sklearn.feature_selection import VarianceThreshold
+import shap
 
 
 def parse_args():
@@ -191,14 +192,31 @@ def main():
     pickle.dump(model, open(os.path.join(output_folder, 'final_survival_model'), 'wb'))
 
     # Using shapley libray we showcase the importance of the features and how they impact the model
-    import shap
+
+    # We first rename the columns to have a more readable name in the plot
+    column_renaming = {
+        'sexe': 'Sex',
+        'BMI': 'Body Mass Index',
+        'score_charlson': 'Charlson Score',
+        'tabac_sevre': 'Smoking cessation',
+        'dose_tot': 'Total Dose',
+        'BED_10': 'BED 10',
+        'INTENSITY-BASED_MeanIntensity': 'Mean Intensity',
+        'INTENSITY-BASED_IntensitySkewness': 'Intensity Skewness',
+        'INTENSITY-BASED_IntensityKurtosis': 'Intensity Kurtosis',
+        'INTENSITY-BASED_AreaUnderCurveCIVH': 'Area Under Curve CIVH',
+        'INTENSITY-BASED_RootMeanSquareIntensity': 'Root Mean Square Intensity',
+        'INTENSITY-HISTOGRAM_IntensityHistogramMean': 'Intensity Histogram Mean',
+        'INTENSITY-HISTOGRAM_IntensityHistogramVariance': 'Intensity Histogram Variance',
+        'NGTDM_Strength': 'NGTDM Strength'
+    }
+    x_train.rename(columns=column_renaming, inplace=True)
+    x_test.rename(columns=column_renaming, inplace=True)
     shap.initjs()
     explainer = shap.TreeExplainer(model)
     shap_values = explainer.shap_values(x_train)
     shap.summary_plot(shap_values, x_train, plot_type="bar")
     shap.summary_plot(shap_values, x_train)
-    
-    
 
     return None
 
