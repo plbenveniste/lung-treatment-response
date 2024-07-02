@@ -1,0 +1,12 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+authors:
+  - family-names: Benveniste
+    given-names: Pierre-Louis
+    orcid: https://orcid.org/0009-0003-3122-1957
+title: "Predictive model for response to lung stereotactic body radiation therapy"
+version: 2.0.4
+identifiers:
+  - type: doi
+    value: 10.5281/zenodo.12628523
+date-released: 2024-07-02
