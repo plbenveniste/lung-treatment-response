@@ -11,7 +11,7 @@ We also investigated feature removal, data-preprocessing and prediction timefram
 
 Authors: Camille Invernizzi, Pierre-Louis Benveniste
 
-## [Instructions to install everything](#instructions)
+## 1. Instructions to install everything
 
 Create a new environment
 
@@ -29,7 +29,7 @@ Then install all required libraries
 pip install -r requirements.txt
 ``` 
 
-## Code in this repository
+## 2. Code in this repository
 
 The code is divided in two folders: 
 - data_preprocessing: here we investigate the data for data preprocessing, dataset merging, dataset statistics and feature elimination.
@@ -37,9 +37,9 @@ The code is divided in two folders:
 
 NB: the investigations are detailed in the issues. 
 
-## Performing a prediction
+## 3. Performing a prediction
 
-After doing the steps in [installation section](#instructions) and downloading the model from the [release](https://github.com/plbenveniste/lung-treatment-response/releases), you can run an inference using the file [predict_3year_survival.py](./predict_3year_survival.py). 
+After doing the steps in installation section (section 1) and downloading the model from the [release](https://github.com/plbenveniste/lung-treatment-response/releases), you can run an inference using the file [predict_3year_survival.py](./predict_3year_survival.py). 
 Use the following command: 
 
 ```console
