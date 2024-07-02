@@ -196,19 +196,11 @@ def main():
     # We first rename the columns to have a more readable name in the plot
     column_renaming = {
         'sexe': 'Sex',
-        'BMI': 'Body Mass Index',
-        'score_charlson': 'Charlson Score',
-        'tabac_sevre': 'Smoking cessation',
-        'dose_tot': 'Total Dose',
-        'BED_10': 'BED 10',
-        'INTENSITY-BASED_MeanIntensity': 'Mean Intensity',
-        'INTENSITY-BASED_IntensitySkewness': 'Intensity Skewness',
-        'INTENSITY-BASED_IntensityKurtosis': 'Intensity Kurtosis',
-        'INTENSITY-BASED_AreaUnderCurveCIVH': 'Area Under Curve CIVH',
-        'INTENSITY-BASED_RootMeanSquareIntensity': 'Root Mean Square Intensity',
-        'INTENSITY-HISTOGRAM_IntensityHistogramMean': 'Intensity Histogram Mean',
-        'INTENSITY-HISTOGRAM_IntensityHistogramVariance': 'Intensity Histogram Variance',
-        'NGTDM_Strength': 'NGTDM Strength'
+        'BMI': 'BMI',
+        'score_charlson': 'Charlson Comorbidity Index (i.e. score_charlson)',
+        'tabac_sevre': 'Smoking cessation (i.e. tabac_sevre)',
+        'dose_tot': 'Total Dose (i.e. dose_tot)',
+        'BED_10': 'BED 10'
     }
     x_train.rename(columns=column_renaming, inplace=True)
     x_test.rename(columns=column_renaming, inplace=True)
