@@ -11,7 +11,7 @@ We also investigated feature removal, data-preprocessing and prediction timefram
 
 Authors: Camille Invernizzi, Pierre-Louis Benveniste
 
-## Instructions to install everything
+## [Instructions to install everything](#instructions)
 
 Create a new environment
 
@@ -36,3 +36,12 @@ The code is divided in two folders:
 - model training: here we investigate the training of model prediction for survival, local relapse and final relapse. 
 
 NB: the investigations are detailed in the issues. 
+
+## Performing a prediction
+
+After doing the steps in [installation section](#instructions) and downloading the model from the [release](https://github.com/plbenveniste/lung-treatment-response/releases), you can run an inference using the file [predict_3year_survival.py](./predict_3year_survival.py). 
+Use the following command: 
+
+```console
+python predict_3year_survival.py --model-path PATH/TO/MODEL --sex X --BMI X --score_charlson X --smoke_cessation X --dose_tot X --BED_10 X --MeanIntensity X --IntensitySkewness X --IntensityKurtosis X --AreaUnderCurveCIVH X --RootMeanSquareIntensity X --IntensityHistogramMean X --IntensityHistogramVariance X --NGTDM_Strength X
+```
