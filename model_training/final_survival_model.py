@@ -28,6 +28,7 @@ import matplotlib.pyplot as plt
 import pickle
 from sklearn.feature_selection import VarianceThreshold
 import shap
+from sklearn.calibration import calibration_curve, CalibratedClassifierCV
 
 
 def parse_args():
@@ -191,8 +192,58 @@ def main():
     # Save the model
     pickle.dump(model, open(os.path.join(output_folder, 'final_survival_model'), 'wb'))
 
-    # Using shapley libray we showcase the importance of the features and how they impact the model
+    ############### CALIBRATION OF THE MODEL     ############################
+    # We calibrate the model using the isotonic method
+    model_calibrated = CalibratedClassifierCV(model, method='isotonic', cv='prefit')
+    model_calibrated.fit(x_train, y_train)
 
+    # Performance on the test set
+    y_test_pred_calibrated = model_calibrated.predict(x_test)
+    y_test_proba_calibrated = model_calibrated.predict_proba(x_test)[:, 1]
+
+    # Compute ROC-AUC, accuracy score, Brier score and PR-AUC score
+    print("Final model performance on the testing set after calibration")
+    print("ROC AUC Score: ", roc_auc_score(y_test, y_test_proba_calibrated))
+    print("Brier score:", brier_score_loss(y_test, y_test_proba_calibrated))
+    print("Average precision:", precision_score(y_test, y_test_pred_calibrated))
+    print("Average Recall:", recall_score(y_test, y_test_pred_calibrated))
+    print("Accuracy Score: ",accuracy_score(y_test, y_test_pred_calibrated))
+    precision_test_calibrated, recall_test_calibrated, _ = precision_recall_curve(y_test, y_test_pred_calibrated)
+    print("AUC-PR score:", auc(recall_test_calibrated, precision_test_calibrated))
+    print("Confusion matrix:")
+    tn, fp, fn, tp = confusion_matrix(y_test, y_test_pred_calibrated).ravel()
+    print("TN:", tn)
+    print("FP:", fp)
+    print("FN:", fn)
+    print("TP:", tp)
+    print("\n")
+
+    # Plot the calibration before and after calibration
+    prob_true, prob_pred = calibration_curve(y_test, y_test_proba, n_bins=10)
+    prob_true_calibrated, prob_pred_calibrated = calibration_curve(y_test, y_test_proba_calibrated, n_bins=10)
+    plt.plot(prob_pred, prob_true, marker='o', label='Uncalibrated')
+    plt.plot(prob_pred_calibrated, prob_true_calibrated, marker='o', label='Calibrated')
+    plt.plot([0, 1], [0, 1], linestyle='--', color='black')
+    plt.xlabel('Predicted probability')
+    plt.ylabel('True probability')
+    plt.title('Calibration curve of the final model')
+    plt.legend()
+    plt.show()
+
+    # Plot the calibration curve only of the calibrated model
+    prob_true_calibrated, prob_pred_calibrated = calibration_curve(y_test, y_test_proba_calibrated, n_bins=10)
+    plt.plot(prob_pred_calibrated, prob_true_calibrated, marker='o', label='Calibrated XGBoost model')
+    plt.plot([0, 1], [0, 1], linestyle='--', color='black')
+    plt.xlabel('Predicted probability')
+    plt.ylabel('True probability')
+    plt.title('Calibration curve of the final model')
+    plt.legend()
+    plt.show()
+
+    # Save the calibrated model
+    pickle.dump(model_calibrated, open(os.path.join(output_folder, 'final_survival_model_calibrated'), 'wb'))
+
+    # Using shapley libray we showcase the importance of the features and how they impact the model
     # We first rename the columns to have a more readable name in the plot
     column_renaming = {
         'sexe': 'Sex',
@@ -207,8 +258,25 @@ def main():
     shap.initjs()
     explainer = shap.TreeExplainer(model)
     shap_values = explainer.shap_values(x_train)
-    shap.summary_plot(shap_values, x_train, plot_type="bar")
-    shap.summary_plot(shap_values, x_train)
+    shap.summary_plot(shap_values, x_train, plot_type="bar", show=False)
+    plt.title('Feature importance of the final model')
+    plt.show()
+    shap.summary_plot(shap_values, x_train, show=False)
+    plt.title('Feature importance of the final model')
+    plt.show()
+
+    # We now do the same for the calibrated model
+    shap.initjs()
+    explainer = shap.KernelExplainer(model_calibrated.predict_proba, x_train)
+    shap_values = explainer.shap_values(x_train)
+    # We only select the values for the positive class (meaning having a survival time less than 3 years)
+    shap_values = shap_values[:,:,1]
+    shap.summary_plot(shap_values, x_train, plot_type="bar", show=False)
+    plt.title('Feature importance of the calibrated model')
+    plt.show()
+    shap.summary_plot(shap_values, x_train, show=False)
+    plt.title('Feature importance of the calibrated model')
+    plt.show()
 
     return None
 

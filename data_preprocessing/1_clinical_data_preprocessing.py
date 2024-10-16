@@ -48,7 +48,7 @@ def main():
     # The outputs are the following:
     ## deces, date de mort (DDD), cause_deces, toutes les dates de rechute, reponse (le nodule a repondu)
     feature_columns = ['num\n_patient', 'sexe', 'age', 'BMI', 'score\n_charlson', 'OMS', 'tabac', 'tabac\n_PA', 'tabac\n_sevre', 
-                'histo', 'T', 'centrale', 'dose\n_tot', 'etalement', 'vol\n_GTV', 'vol\n_PTV', 'vol\n_ITV', 'couv\n_PTV', 'BED\n_10']
+                'histo', 'T', 'centrale', 'dose\n_tot', 'etalement', 'vol\n_GTV', 'vol\n_PTV', 'vol\n_ITV', 'couv\n_PTV', 'BED\n_10', 'Last\n_news', 'date\n_TDM']
     outputs_columnns = ['DC', 'DDD', 'cause_DC', 'Date_R\n_PTV', 'Date_R\n_homo','Date_R\n_med','Date_R\n_contro','Date_R\n_horspoum', 'Reponse', 'date\n_fin']
     all_columns = feature_columns + outputs_columnns
 
@@ -78,7 +78,9 @@ def main():
         "Date_R\n_med": "Date_R_med",
         "Date_R\n_contro": "Date_R_contro",
         "Date_R\n_horspoum": "Date_R_horspoum",
-        "date\n_fin": "date_fin"
+        "date\n_fin": "date_fin",
+        "Last\n_news": "last_news",
+        "date\n_TDM": "date_TDM"
     }
     data = data.rename(columns=change_columns)
 
@@ -164,6 +166,17 @@ def main():
     data['delai_fin_rechuteHorspoum'] = data['delai_fin_rechuteHorspoum'].dt.days
     data['delai_fin_rechuteHorspoum'] = data['delai_fin_rechuteHorspoum'].apply(lambda x: 0 if x < 0 else x)
 
+    # We pre-preprocess the last_news column and the date_debut column
+    data['last_news'] = data['last_news'].apply(pd.to_datetime, dayfirst=True)
+    data['date_TDM'] = data['date_TDM'].apply(pd.to_datetime, dayfirst=True)
+
+    # Create a column which is follow-up time
+    data['follow_up'] = data['last_news'] - data['date_TDM']
+    data['follow_up'] = data['follow_up'].dt.days
+
+    # We remove the columns that are not useful anymore
+    data = data.drop(columns=['date_TDM', 'last_news'])
+    
     # We remove date_fin
     data = data.drop(columns=['date_fin'])
 
