@@ -61,7 +61,7 @@ def main():
     # We remove data which is note useful to make the averaging easier
     data = data.drop(columns=['DDD', 'cause_DC', 'Date_R_PTV', 'Date_R_homo', 'Date_R_med', 'Date_R_contro', 'Date_R_horspoum', 'Reponse', 'rechute_PTV', 'rechute_homo',
                            'rechute_med', 'rechute_contro', 'rechute_horspoum', 'delai_fin_rechutePTV', 'delai_fin_rechuteHomo','delai_fin_rechuteMed',
-                           'delai_fin_rechuteContro', 'delai_fin_rechuteHorspoum','subject_nodule', 'nodule' ])
+                           'delai_fin_rechuteContro', 'delai_fin_rechuteHorspoum','subject_nodule', 'nodule', 'follow_up' ])
     
 
     # We average the columns for the same patients across the different nodules
@@ -82,16 +82,22 @@ def main():
     # We replace all nan values by 0 in 'DC'
     y.fillna(0, inplace=True)
 
-    # Describe x and y
-    print('Feature data shape:', x.shape)
-    print('Target data shape:', y.shape)
-    print("Number of subjects which died:", y[y['DC']==1].shape[0])
-
     # Split the data into training and testing sets based on column 'train_test'
     x_train = x[x['train_test'] == 'train'].drop(columns=['train_test'])
     x_test = x[x['train_test'] == 'test'].drop(columns=['train_test'])
     y_train = y[y['train_test'] == 'train'].drop(columns=['train_test'])
     y_test = y[y['train_test'] == 'test'].drop(columns=['train_test'])
+
+    # Describe x and y
+    print("Train:")
+    print('Feature data shape :', x_train.shape)
+    print('Target data shape:', y_train.shape)
+    print("Test:")
+    print('Feature data shape :', x_test.shape)
+    print('Target data shape:', y_test.shape)
+    print("\n")
+    print("Number of subjects which died:", y[y['DC']==1].shape[0])
+
     # x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=0.2, random_state=1)
     print("\nNumber of subject for training:", x_train.shape[0])
     print("Number of subject for testing:", x_test.shape[0])
