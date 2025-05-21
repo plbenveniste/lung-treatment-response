@@ -3,7 +3,7 @@ This file deals with the pre-preprocessing of the individual csv files
 
 Args:
     input: Path to the folder containing the csv files
-    output: Path to the output folder
+    output-file: Path to the output file
 
 Returns:
     None
@@ -29,7 +29,7 @@ def parse_args():
     """
     parser = argparse.ArgumentParser(description='Preprocess the data from the lung cancer response dataset')
     parser.add_argument('--input', type=str, help='Path to the folder containing the csv files')
-    parser.add_argument('--output', type=str, help='Path to the output folder')
+    parser.add_argument('--output-file', type=str, help='Path to the output file')
     return parser.parse_args()
 
 
@@ -42,7 +42,7 @@ def main():
     # We parse the arguments
     args = parse_args()
     input_path = args.input
-    output_folder = args.output
+    output_file = args.output_file
 
     # Initialisation of the merged dataset
     merged_data = pd.DataFrame()
@@ -243,7 +243,7 @@ def main():
 
     # We save the output_data
     output_data = output_data.T
-    output_data.to_csv(os.path.join(output_folder, 'radiomics_data_preprocessed.csv'))            
+    output_data.to_csv(output_file)
 
     return None
 

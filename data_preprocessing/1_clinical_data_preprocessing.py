@@ -3,7 +3,7 @@ This file is created to pre-process the data from the lung cancer response datas
 
 Args:
     input: Path to the input csv file
-    output: Path to the output folder
+    output-file: Path to the output file
 
 Returns:
     None
@@ -25,7 +25,7 @@ def parse_args():
     """
     parser = argparse.ArgumentParser(description='Preprocess the data from the lung cancer response dataset')
     parser.add_argument('--input', type=str, help='Path to the input csv file')
-    parser.add_argument('--output', type=str, help='Path to the output folder')
+    parser.add_argument('--output-file', type=str, help='Path to the output file')
     return parser.parse_args()
 
 
@@ -38,7 +38,7 @@ def main():
     # We parse the arguments
     args = parse_args()
     input_path = args.input
-    output_folder = args.output
+    output_file = args.output_file
 
     # We first load the dataset (in csv)
     data = pd.read_csv(input_path)
@@ -181,7 +181,6 @@ def main():
     data = data.drop(columns=['date_fin'])
 
     ## We save the pre-processed dataset in the folder
-    output_file = os.path.join(output_folder, "clinical_data_preprocessed.csv")
     data.to_csv(output_file, index=False)
 
     return None
