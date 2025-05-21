@@ -199,10 +199,10 @@ def main():
             # We remove the column
             merged_data = merged_data.drop(columns=column)
             print("Column {} has been removed because it contained only nan".format(column))
-        # if more than 80% of the values are nan we remove the column
-        elif merged_data[column].isnull().sum() > 0.5*len(merged_data):
-            merged_data = merged_data.drop(columns=column)
-            print("Column {} has been removed because it contained more than 50% of nan".format(column))
+        # # if more than 50% of the values are nan we remove the column
+        # elif merged_data[column].isnull().sum() > 0.5*len(merged_data):
+        #     merged_data = merged_data.drop(columns=column)
+        #     print("Column {} has been removed because it contained more than 50% of nan".format(column))
     
     # We compute the ICC for each feature and keep only the features which have an ICC>0.8
     # We first define the rater column : is rater 1 if "Camille" in INFO_NameOfRoi and 0 otherwise
