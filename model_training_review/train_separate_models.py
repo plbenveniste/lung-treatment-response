@@ -1,5 +1,5 @@
-""""
-
+"""
+This function is used to train separate models for each of the test sites.
 """
 
 import pandas as pd
