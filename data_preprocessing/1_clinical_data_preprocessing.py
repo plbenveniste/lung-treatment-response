@@ -47,7 +47,7 @@ def main():
     ## sex, age, BMI, Charlson's score, OMS, tabac, tabac_PA, tabac_sevre, histo, T, centrale, dose_tot, etalement, vol_GTV, vol_PTV, vol_ITV, couv-PTV, BED_10
     # The outputs are the following:
     ## deces, date de mort (DDD), cause_deces, toutes les dates de rechute, reponse (le nodule a repondu)
-    feature_columns = ['num\n_patient', 'sexe', 'age', 'BMI', 'score\n_charlson', 'OMS', 'tabac', 'tabac\n_PA', 'tabac\n_sevre', 
+    feature_columns = ['num\n_patient', 'sexe', 'age', 'BMI', 'score\n_charlson', 'dyspnee\n_NYHA', 'OMS', 'tabac', 'tabac\n_PA', 'tabac\n_sevre', 
                 'histo', 'T', 'centrale', 'dose\n_tot', 'etalement', 'vol\n_GTV', 'vol\n_PTV', 'vol\n_ITV', 'couv\n_PTV', 'BED\n_10', 'Last\n_news', 'date\n_TDM']
     outputs_columnns = ['DC', 'DDD', 'cause_DC', 'Date_R\n_PTV', 'Date_R\n_homo','Date_R\n_med','Date_R\n_contro','Date_R\n_horspoum', 'Reponse', 'date\n_fin']
     all_columns = feature_columns + outputs_columnns
@@ -65,6 +65,7 @@ def main():
     change_columns = {
         "num\n_patient": "num_patient",
         "score\n_charlson": "score_charlson", 
+        "dyspnee\n_NYHA": "dyspnee_NYHA",
         "tabac\n_PA": "tabac_PA",
         "tabac\n_sevre": "tabac_sevre",
         "dose\n_tot": "dose_tot",
@@ -95,6 +96,8 @@ def main():
     data['BMI'] = data['BMI'].apply(pd.to_numeric)
     ## For score_charlson we check that they all take numeric values
     data["score_charlson"] =  data["score_charlson"].apply(pd.to_numeric)
+    ## For dyspnee_NYHA we check that they all take numeric values
+    data['dyspnee_NYHA'] = data['dyspnee_NYHA'].apply(pd.to_numeric)
     ## For OMS we check that they all take numeric values
     data['OMS'] = data['OMS'].apply(pd.to_numeric)
     ## For tabac, tabac_PA, tabac_sevre we check that they all take numeric values
