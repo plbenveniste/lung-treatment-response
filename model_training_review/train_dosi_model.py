@@ -25,7 +25,6 @@ def parse_args():
     parser = argparse.ArgumentParser(description='Preprocess the data from the lung cancer response dataset')
     parser.add_argument('--input', type=str, help='Path to the csv file containing the merged data')
     parser.add_argument('--output', type=str, help='Path to the folder where the results will be saved')
-    parser.add_argument('--test-set', type=str, default='L', help='Letter corresponding to the test set (default: L) (possible values are [D, H, L, R, T, V])')
     return parser.parse_args()
 
 
@@ -43,10 +42,7 @@ def main():
     # If the output_folder doesn't exist create it
     os.makedirs(output_folder, exist_ok=True)
 
-    test_set_letter = args.test_set
-    # Check that the test set value is possible
-    if test_set_letter not in ['D', 'H', 'L', 'R', 'T', 'V']:
-        raise ValueError(f"Test set value {test_set_letter} is not valid. Possible values are ['D', 'H', 'L', 'R', 'T', 'V']")
+    test_set_letter = 'D'
 
     ########################################################################
     #################### DATA PREPROCESSING ################################
@@ -61,8 +57,17 @@ def main():
                            'delai_fin_rechuteContro', 'delai_fin_rechuteHorspoum','subject_nodule', 'nodule', 'follow_up' ])
     
 
-    # We average the columns for the same patients across the different nodules
-    data_grouped = data.groupby('subject_id').mean().reset_index()
+    # For dosimetric data, we sum the features together by subject (so that if there is two nodules, the dosimetric data reflects the sum of the two doses)
+    data_dosi = data[['subject_id', 'dose_tot', 'etalement', 'vol_GTV', 'vol_PTV', 'vol_ITV', 'couv_PTV', 'BED_10']]
+    # We group the data by subject and sum the dosi features
+    data_dosi = data_dosi.groupby('subject_id').sum().reset_index()
+
+    # For the rest of the data, we average
+    data_rest = data.drop(columns=['dose_tot', 'etalement', 'vol_GTV', 'vol_PTV', 'vol_ITV', 'couv_PTV', 'BED_10'])
+    data_rest = data_rest.groupby('subject_id').mean().reset_index()
+
+    # We concatenate the dosimetric and rest of the data
+    data_grouped = pd.merge(data_dosi, data_rest, on='subject_id', how='outer')
 
     # We extract the site where the subjects are from which is the first letter of the subject_id
     data_grouped['site'] = data_grouped['subject_id'].apply(lambda x: x[0])
@@ -141,7 +146,7 @@ def main():
         # 'reg_lambda': Real(0, 1),
     }
     # We define the model
-    model = XGBClassifier(seed=42)
+    model = XGBClassifier(seed=44, scale_pos_weight=5)
     # We define the search
     search = BayesSearchCV(model, search_spaces, n_iter=100, n_jobs=1, cv=3, random_state=42, scoring='roc_auc')
     # We fit the search
@@ -151,6 +156,19 @@ def main():
     print(search.best_params_)
     # We evaluate the model
     model = search.best_estimator_
+
+    # Performance on the training set
+    y_train_pred = model.predict(x_train)
+    y_train_proba = model.predict_proba(x_train)[:, 1]
+    print("Model performance on the training set")
+    print("ROC AUC Score:", roc_auc_score(y_train, y_train_proba))
+    print("Brier score:", brier_score_loss(y_train, y_train_proba))
+    print("Average precision:", precision_score(y_train, y_train_pred))
+    print("Average Recall:", recall_score(y_train, y_train_pred))
+    print("Accuracy Score:", accuracy_score(y_train, y_train_pred))
+    precision_train, recall_train, _ = precision_recall_curve(y_train, y_train_pred)
+    print("AUC-PR score:", auc(recall_train, precision_train))
+    print("\n")
 
     # Performance on the training set
     y_test_pred = model.predict(x_test)
