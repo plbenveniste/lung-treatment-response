@@ -220,14 +220,6 @@ def main():
     shap.initjs()
     explainer = shap.TreeExplainer(model)
     shap_values = explainer.shap_values(x_train)
-    # shap.summary_plot(shap_values, x_train, plot_type="bar", show=False)
-    # plt.title('Feature importance of the final model')
-    # plt.show()
-    # plt.savefig(os.path.join(output_folder, 'feature_importance_final_model.png'))
-    # shap.summary_plot(shap_values, x_train, show=False)
-    # plt.title('Feature importance of the final model')
-    # plt.savefig(os.path.join(output_folder, 'feature_importance_final_model_shap.png'))
-    # plt.show()
 
     # Print table of feature importance with feature names
     feature_importance = pd.DataFrame(list(zip(x_train.columns, np.abs(shap_values).mean(axis=0))), columns=['feature', 'importance'])
@@ -312,6 +304,19 @@ def main():
     print("AUC-PR score:", auc(recall_test, precision_test))
     print("\n")
 
+    # Plot the ROC curve for training and testing sets
+    fpr_train, tpr_train, _ = roc_curve(y_train, y_train_proba)
+    fpr_test, tpr_test, _ = roc_curve(y_test, y_test_proba)
+    plt.figure(figsize=(10, 6))
+    plt.plot(fpr_train, tpr_train, label='Train set (ROC AUC = {:.4f})'.format(roc_auc_score(y_train, y_train_proba)), color='blue')
+    plt.plot(fpr_test, tpr_test, label='Test set (ROC AUC = {:.4f})'.format(roc_auc_score(y_test, y_test_proba)), color='orange')
+    plt.plot([0, 1], [0, 1], 'k--', label='Random guess', color='gray')
+    plt.xlabel('False Positive Rate')
+    plt.ylabel('True Positive Rate')
+    plt.title('ROC Curve')
+    plt.legend(loc='lower right')
+    plt.savefig(os.path.join(output_folder, 'roc_curve_20_features.png'))
+
     ########################################################################
     #################### FEATURE SELECTION #################################
     ########################################################################
@@ -321,19 +326,17 @@ def main():
     shap.initjs()
     explainer = shap.TreeExplainer(model)
     shap_values = explainer.shap_values(x_train_20_feat)
-    # shap.summary_plot(shap_values, x_train, plot_type="bar", show=False)
-    # plt.title('Feature importance of the final model')
-    # plt.show()
-    # plt.savefig(os.path.join(output_folder, 'feature_importance_final_model.png'))
-    # shap.summary_plot(shap_values, x_train, show=False)
-    # plt.title('Feature importance of the final model')
-    # plt.savefig(os.path.join(output_folder, 'feature_importance_final_model_shap.png'))
-    # plt.show()
+    shap.summary_plot(shap_values, x_train, plot_type="bar", show=False)
+    plt.title('Feature importance of the final model')
+    plt.savefig(os.path.join(output_folder, 'feature_importance_final_model.png'))
+    # Another plot
+    shap.summary_plot(shap_values, x_train, show=False)
+    plt.title('Feature importance of the final model')
+    plt.savefig(os.path.join(output_folder, 'feature_importance_final_model_shap.png'))
 
     # Print table of feature importance with feature names
     feature_importance = pd.DataFrame(list(zip(x_train_20_feat.columns, np.abs(shap_values).mean(axis=0))), columns=['feature', 'importance'])
     feature_importance = feature_importance.sort_values(by='importance', ascending=False)
-    #print(feature_importance)
     # Print the top 20 features
     print("Top 20 features:")
     print(feature_importance.head(20))
@@ -403,19 +406,10 @@ def main():
     shap.initjs()
     explainer = shap.TreeExplainer(model)
     shap_values = explainer.shap_values(x_train_15_feat)
-    # shap.summary_plot(shap_values, x_train, plot_type="bar", show=False)
-    # plt.title('Feature importance of the final model')
-    # plt.show()
-    # plt.savefig(os.path.join(output_folder, 'feature_importance_final_model.png'))
-    # shap.summary_plot(shap_values, x_train, show=False)
-    # plt.title('Feature importance of the final model')
-    # plt.savefig(os.path.join(output_folder, 'feature_importance_final_model_shap.png'))
-    # plt.show()
 
     # Print table of feature importance with feature names
     feature_importance = pd.DataFrame(list(zip(x_train_15_feat.columns, np.abs(shap_values).mean(axis=0))), columns=['feature', 'importance'])
     feature_importance = feature_importance.sort_values(by='importance', ascending=False)
-    #print(feature_importance)
     # Print the top 20 features
     print("Top 15 features:")
     print(feature_importance.head(15))
