@@ -326,15 +326,40 @@ def main():
     shap.initjs()
     explainer = shap.TreeExplainer(model)
     shap_values = explainer.shap_values(x_train_20_feat)
-    shap.summary_plot(shap_values, x_train, plot_type="bar", show=False)
+    plt.figure(figsize=(20, 20))
+    shap.summary_plot(shap_values, x_train_20_feat, plot_type="bar", show=False)
     plt.title('Feature importance of the final model')
+    plt.tight_layout()
     plt.savefig(os.path.join(output_folder, 'feature_importance_final_model.png'))
     # Another plot
-    shap.summary_plot(shap_values, x_train, show=False)
+    plt.figure(figsize=(20, 20))
+    shap.summary_plot(shap_values, x_train_20_feat, show=False)
     plt.title('Feature importance of the final model')
+    plt.tight_layout()
     plt.savefig(os.path.join(output_folder, 'feature_importance_final_model_shap.png'))
+    
+    # Shap plot bar plot
+    shap_values = shap.Explanation(values=shap_values,
+                                   base_values=explainer.expected_value,
+                                   data=x_train_20_feat,
+                                   feature_names=x_train_20_feat.columns)
+    plt.figure(figsize=(10, 6))
+    shap.plots.bar(shap_values, max_display=20, show=False)
+    plt.title("Feature importance of the final model", fontsize=14, weight='bold', pad=20)
+    plt.tight_layout()
+    plt.savefig(os.path.join(output_folder, 'shap_bar_plot_final_model.png'), dpi=300, bbox_inches='tight', facecolor='white')
+    plt.close()
+
+    # Bees warm plot
+    plt.figure(figsize=(10, 6))
+    shap.plots.beeswarm(shap_values, max_display=20, show=False)
+    plt.title('Feature importance of the final model', fontsize=14, weight='bold', pad=30)
+    plt.tight_layout()
+    plt.savefig(os.path.join(output_folder, 'shap_beeswarm_plot_final_model.png'))
+    plt.close()
 
     # Print table of feature importance with feature names
+    shap_values = explainer.shap_values(x_train_20_feat)
     feature_importance = pd.DataFrame(list(zip(x_train_20_feat.columns, np.abs(shap_values).mean(axis=0))), columns=['feature', 'importance'])
     feature_importance = feature_importance.sort_values(by='importance', ascending=False)
     # Print the top 20 features
