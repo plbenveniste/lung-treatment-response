@@ -1,5 +1,5 @@
 """"
-This script is used to train and evaluate the model for local relapse.
+This script is used to train and evaluate the model for the prediction of distant (meaning non-local) relapse of lung cancer.
 It also demonstrates the results of the model on the test set.
 
 Args:
@@ -10,7 +10,7 @@ Returns:
     None
 
 Example run:
-    python local_relapse_model.py --input /path/to/merged.csv --output /path/to/output_folder
+    python distant_relpase_model.py --input /path/to/merged.csv --output /path/to/output_folder
 
 Author: Pierre-Louis Benveniste
 """
@@ -20,9 +20,9 @@ import numpy as np
 import argparse
 import os
 from pathlib import Path
-from sklearn.model_selection import train_test_split, StratifiedKFold
+from sklearn.model_selection import StratifiedKFold
 from xgboost import XGBClassifier
-from sklearn.metrics import roc_auc_score, auc, brier_score_loss, precision_recall_curve, accuracy_score, roc_curve, precision_score, recall_score, confusion_matrix, f1_score
+from sklearn.metrics import roc_auc_score, auc, brier_score_loss, precision_recall_curve, accuracy_score, roc_curve, precision_score, recall_score, f1_score
 from skopt.space import Real, Integer
 from skopt import BayesSearchCV
 import matplotlib.pyplot as plt
@@ -49,7 +49,7 @@ def parse_args():
 def main():
     """
     This is the main function of the script. 
-    It does the training and evaluation of the local relapse model.
+    It does the training and evaluation of the distant relapse model.
     """
 
     # We parse the arguments
@@ -57,47 +57,62 @@ def main():
     input_data = args.input
     output_folder = args.output
 
-    # If the output folder does not exist, we create it
+    # if the output folder does not exist, we create it
     os.makedirs(output_folder, exist_ok=True)
 
     # Clear the log file
-    log_file = os.path.join(output_folder, f'local_relapse.txt')
+    log_file = os.path.join(output_folder, f'distant_relapse.txt')
     with open(log_file, 'w') as f:
         f.write('')
     logger.add(log_file)
 
-    ########################################################################
-    ############## DATA PRE-PROCESSING #####################################
-    ########################################################################
-
     # Load the dataset
-    data_load = pd.read_csv(input_data)
+    data = pd.read_csv(input_data)
 
     # We remove data which is note useful to make the averaging easier
-    data = data_load.drop(columns=['DDD', 'cause_DC', 'Date_R_PTV', 'Date_R_homo', 'Date_R_med', 'Date_R_contro', 'Date_R_horspoum', 'Reponse','rechute_homo',
-                           'rechute_med', 'rechute_contro', 'rechute_horspoum', 'delai_fin_rechutePTV', 'delai_fin_rechuteHomo','delai_fin_rechuteMed',
-                           'delai_fin_rechuteContro', 'delai_fin_rechuteHorspoum','subject_nodule', 'nodule', 'follow_up','subject_id', 'nodule'])
-    # For the local relapse, there is no need to average per subject -> we focus on nodules specifically
-    y = data[['rechute_PTV']]
-    x = data.drop(columns=['rechute_PTV'])
+    data = data.drop(columns=['DC', 'delai_fin_DC', 'DDD', 'cause_DC', 'Date_R_PTV', 'Date_R_homo', 'Date_R_med', 'Date_R_contro',
+                              'Date_R_horspoum','subject_nodule', 'nodule', 'Reponse', 'rechute_PTV','delai_fin_rechutePTV'])
+    
+
+    # We average the columns for the same patients across the different nodules
+    data_grouped = data.groupby('subject_id').mean().reset_index()
+
+    # For all values in the 'rechute' columns, we replace values above 0 by 1 and the rest is 0
+    data_grouped['rechute_homo'] = data_grouped['rechute_homo'].apply(lambda x: 1 if x > 0 else 0)
+    data_grouped['rechute_med'] = data_grouped['rechute_med'].apply(lambda x: 1 if x > 0 else 0)
+    data_grouped['rechute_contro'] = data_grouped['rechute_contro'].apply(lambda x: 1 if x > 0 else 0)
+    data_grouped['rechute_horspoum'] = data_grouped['rechute_horspoum'].apply(lambda x: 1 if x > 0 else 0)
+
+    # First we build a column which is 1 if the patient had a distant relapse and 0 otherwise
+    # To do so we can sum the colums consisting of relapse (rechute)
+    data_grouped['rechute_dist'] = data_grouped['rechute_homo'] + data_grouped['rechute_med'] + data_grouped['rechute_contro'] + data_grouped['rechute_horspoum']
+    data_grouped['rechute_dist'] = data_grouped['rechute_dist'].apply(lambda x: 1 if x > 0 else 0)
+
+    # Then we build a distant relapse delay which is the average of the delays of the different types of relapse
+    data_grouped['rechute_dist_moy_delai'] = data_grouped[['delai_fin_rechuteHomo','delai_fin_rechuteMed','delai_fin_rechuteContro', 'delai_fin_rechuteHorspoum']].mean(axis=1)
+
+    # Split into features and target
+    y = data_grouped[['rechute_dist','rechute_dist_moy_delai']]
+    x = data_grouped.drop(columns=['rechute_homo', 'rechute_med', 'rechute_contro', 'rechute_horspoum', 'delai_fin_rechuteHomo', 'follow_up',
+                                   'delai_fin_rechuteMed','delai_fin_rechuteContro', 'delai_fin_rechuteHorspoum', 'subject_id', 'rechute_dist','rechute_dist_moy_delai'])
+    
+    # In this case, because we are only interested in the prediction of distant relapse, we extract only the 'DC'
+    y = y[['rechute_dist']]
+    # We replace all nan values by 0 in 'DC'
+    y.fillna(0, inplace=True)
 
     # Describe x and y
     logger.info(f'Feature data shape: {x.shape}')
     logger.info(f'Target data shape: {y.shape}')
-    logger.info(f"Number of subjects which had a local relapse: {y[y['rechute_PTV']==1].shape[0]}")
+    logger.info(f"Number of subjects which had a distant relapse: {y[y['rechute_dist']==1].shape[0]}")
 
     # Plot the distribution of 'delai_fin_DC'
-    data_load['delai_fin_rechutePTV'].hist()
-    plt.title('Distribution of time between end of treatment and local \nrelapse (in days) for those that had a local relapse')
+    data_grouped['rechute_dist_moy_delai'].hist()
+    plt.title('Distribution of distant relapse time between end of treatment and\n occurence of a relapse (in days) for those that relapsed')
     plt.xlabel('Time')
     plt.ylabel('Number of subjects')
-    plt.savefig(os.path.join(output_folder, 'delai_fin_rechutePTV_histogram.png'))
+    plt.savefig(os.path.join(output_folder, 'delai_fin_rechute_dist_histogram.png'))
 
-    # Box plot of the 'delai_fin_rechutePTV' column
-    data_load.boxplot(column='delai_fin_rechutePTV')
-    plt.title('Box plot of the time between end of treatment and local relapse')
-    plt.ylabel('Time')
-    plt.savefig(os.path.join(output_folder, 'delai_fin_rechutePTV_boxplot.png'))
 
     ########################################################################
     ############## MODEL TRAINING ##########################################
@@ -123,7 +138,6 @@ def main():
 
     # Stockage des résultats
     outer_results = []
-    feature_importances = []
     best_params_list = []
     for train_idx, test_idx in outer_cv.split(X, y):
         X_train, X_test = X.iloc[train_idx], X.iloc[test_idx]
