@@ -31,6 +31,8 @@ import pickle
 from sklearn.feature_selection import VarianceThreshold
 import shap
 from loguru import logger
+import gc
+from sklearn.calibration import calibration_curve
 
 import warnings
 warnings.filterwarnings('ignore')
@@ -197,56 +199,18 @@ def main():
         logger.info(f"Fold results: {metrics}")
         logger.info(f"Best hyperparameters: {search.best_params_}")
 
-        # # Get feature importances for this fold
-        # explainer = shap.Explainer(best_model)
-        # importances = np.abs(explainer.shap_values(X)).mean(axis=0)
-        # feature_importances.append(importances)
-
     # === Résultats globaux (moyenne ± std sur les folds externes) ===
     results_df = pd.DataFrame(outer_results)
     logger.info("\n=== Résultats Nested CV ===")
     for element in results_df.columns:
         logger.info(f"{element}: {results_df[element].mean():.4f} ± {results_df[element].std():.4f}")
 
-    # # Plot feature importance across folds
-    # ## Average feature importances across all folds
-    # avg_importances = np.mean(feature_importances, axis=0)
-    # ## Create a DataFrame for visualization
-    # feature_names = X.columns
-    # importance_df = pd.DataFrame({
-    #     'Feature': feature_names,
-    #     'Importance': avg_importances
-    # }).sort_values('Importance', ascending=False)
-    # ## Plot
-    # plt.figure(figsize=(10, 6))
-    # plt.barh(importance_df['Feature'], importance_df['Importance'])
-    # plt.xlabel('Average Importance')
-    # plt.title('Feature Importance Across All Folds')
-    # plt.gca().invert_yaxis()  # Most important at the top
-    # plt.savefig(os.path.join(output_folder, 'all_feature_importance.png'))
-    # plt.close()
-    # ## Now we also plot only the 20 most important features
-    # top_n = 20
-    # plt.figure(figsize=(10, 6))
-    # plt.barh(importance_df['Feature'][:top_n], importance_df['Importance'][:top_n])
-    # plt.xlabel('Average Importance')
-    # plt.title(f'Top {top_n} Feature Importance Across All Folds')
-    # plt.gca().invert_yaxis()  # Most important at the top
-    # plt.savefig(os.path.join(output_folder, f'top_{top_n}_feature_importance.png'))
-    # plt.close()
-
-    # # I also want to print the top 20 feature performances
-    # logger.info('Top feature importances: Importance, feature')
-    # for i, feature in enumerate(importance_df['Feature'][:top_n]):
-    #     # Print feature and importance
-    #     logger.info(f"{i+1}: {importance_df['Importance'].iloc[i]:.4f}: {feature}")
-
     # For the best model, we get the feature importance using SHAP
     best_overall_model_idx = np.argmax([res['ROC AUC'] for res in outer_results])
     best_overall_params = best_params_list[best_overall_model_idx]
     best_overall_model = XGBClassifier(seed=42, use_label_encoder=False, eval_metric="logloss", objective='binary:logistic', **best_overall_params)
     best_overall_model.fit(X, y)
-    explainer = shap.Explainer(best_overall_model)
+    explainer = shap.Explainer(best_overall_model, seed=42)
     importances = np.abs(explainer.shap_values(X)).mean(axis=0)
     importance_df = pd.DataFrame({
         'Feature': X.columns,
@@ -257,6 +221,10 @@ def main():
     for i, feature in enumerate(importance_df['Feature'][:20]):
         # Print feature and importance
         logger.info(f"{i+1}: {importance_df['Importance'].iloc[i]:.4f}: {feature}")
+
+    # free memory 
+    del best_overall_model, explainer, importances, results_df, outer_results, best_params_list, search, base_model
+    gc.collect()
 
     #########################################################
     # Training of the final model which uses only 20 features:
@@ -274,6 +242,7 @@ def main():
     # Stockage des résultats
     outer_results = []
     feature_importances = []
+    calibration_curves = []
     best_params_list = []
     for train_idx, test_idx in outer_cv.split(X_selected, y):
         X_train, X_test = X_selected.iloc[train_idx], X_selected.iloc[test_idx]
@@ -319,10 +288,9 @@ def main():
         logger.info(f"Fold results: {metrics}")
         logger.info(f"Best hyperparameters: {search.best_params_}")
 
-        # # Get feature importances for this fold
-        # explainer = shap.Explainer(best_model)
-        # importances = np.abs(explainer.shap_values(X)).mean(axis=0)
-        # feature_importances.append(importances)
+        # Get calibration curve
+        prob_true, prob_pred = calibration_curve(y_test, y_test_proba, n_bins=10)
+        calibration_curves.append((prob_true, prob_pred))
 
     # === Résultats globaux (moyenne ± std sur les folds externes) ===
     results_df = pd.DataFrame(outer_results)
@@ -330,32 +298,34 @@ def main():
     for element in results_df.columns:
         logger.info(f"{element}: {results_df[element].mean():.4f} ± {results_df[element].std():.4f}")
 
-    # # Plot feature importance across folds
-    # ## Average feature importances across all folds
-    # avg_importances = np.mean(feature_importances, axis=0)
-    # ## Create a DataFrame for visualization
-    # feature_names = X_selected.columns
-    # importance_df = pd.DataFrame({
-    #     'Feature': feature_names,
-    #     'Importance': avg_importances
-    # }).sort_values('Importance', ascending=False)
-    # # Print the top 20 feature performances
-    # logger.info('Top feature importances: Importance, feature')
-    # for i, feature in enumerate(importance_df['Feature'][:top_n]):
-    #     # Print feature and importance
-    #     logger.info(f"{i+1}: {importance_df['Importance'].iloc[i]:.4f}: {feature}")
+    # We plot the calibration curve averaged over the folds
+    plt.figure()
+    for i, (prob_true, prob_pred) in enumerate(calibration_curves):
+        plt.plot(prob_pred, prob_true, marker='o', label=f'Fold {i+1}')
+    plt.plot([0, 1], [0, 1], linestyle='--', label='Perfect calibration')
+    plt.xlabel('Predicted probability')
+    plt.ylabel('True probability')
+    plt.title('Calibration curves for each fold')
+    plt.legend()
+    plt.savefig(os.path.join(output_folder, 'calibration_curves_folds.png'))
+    plt.close()
 
-    # # For the best model, we get the feature importance using SHAP
-    # best_overall_model_idx = np.argmax([res['ROC AUC'] for res in outer_results])
-    # best_overall_params = best_params_list[best_overall_model_idx]
-    # best_overall_model = XGBClassifier(seed=42, use_label_encoder=False, eval_metric="logloss", objective='binary:logistic', **best_overall_params)
-    # best_overall_model.fit(X_selected, y)
-    # explainer = shap.Explainer(best_overall_model)
-    # importances = np.abs(explainer.shap_values(X_selected)).mean(axis=0)
-    # importance_df = pd.DataFrame({
-    #     'Feature': X_selected.columns,
-    #     'Importance': importances
-    # }).sort_values('Importance', ascending=False)    
+    # We plot the average calibration curve
+    plt.figure()
+    mean_prob_true = np.mean([cc[0] for cc in calibration_curves], axis=0)
+    mean_prob_pred = np.mean([cc[1] for cc in calibration_curves], axis=0)
+    plt.plot(mean_prob_pred, mean_prob_true, marker='o', label='Mean calibration')
+    plt.plot([0, 1], [0, 1], linestyle='--', label='Perfect calibration')
+    plt.xlabel('Predicted probability')
+    plt.ylabel('True probability')
+    plt.title('Mean Calibration curve across folds')
+    plt.legend()
+    plt.savefig(os.path.join(output_folder, 'mean_calibration_curve.png'))
+    plt.close()
+
+    # Need to remove some stuff to free memory
+    del base_model, search, best_model, X_train, X_test, y_train, y_test, X_selected
+    gc.collect()    
 
     ####################################################
     # Final model training on the whole dataset with the selected features
@@ -397,43 +367,43 @@ def main():
     logger.info("=== Fold results ===")
     logger.info(f"Fold results: {metrics}")
 
-    # Print the importance of each feature:
-    explainer = shap.Explainer(final_model)
-    importances = np.abs(explainer.shap_values(X)).mean(axis=0)
-    feature_importances_df = pd.DataFrame({
-        'Feature': selected_features,
-        'Importance': importances
-    }).sort_values('Importance', ascending=False)
+    # # Print the importance of each feature:
+    # shap.initjs()
+    # explainer = shap.Explainer(final_model, seed=42)
+    # importances = np.abs(explainer.shap_values(X_final)).mean(axis=0)
+    # feature_importances_df = pd.DataFrame({
+    #     'Feature': selected_features,
+    #     'Importance': importances
+    # }).sort_values('Importance', ascending=False)
 
-    for i, feature in enumerate(feature_importances_df['Feature']):
-        # Print feature and importance
-        logger.info(f"{i+1}: {feature_importances_df['Importance'].iloc[i]:.4f}: {feature}")
+    # for i, feature in enumerate(feature_importances_df['Feature']):
+    #     # Print feature and importance
+    #     logger.info(f"{i+1}: {feature_importances_df['Importance'].iloc[i]:.4f}: {feature}")
 
-    # We plot the Shap plot of the final model
-    explainer = shap.Explainer(final_model)
-    shap_values = explainer(X_final)
-    # First figure
-    plt.figure()
-    shap.plots.beeswarm(shap_values, show=False)
-    plt.title('SHAP values for the final model')
-    plt.savefig(os.path.join(output_folder, 'shap_final_model.png'))
-    plt.close()
-    # Second figure
-    plt.figure()
-    shap.summary_plot(shap_values, X_final)
-    plt.title('SHAP summary plot for the final model')
-    plt.savefig(os.path.join(output_folder, 'shap_summary_final_model.png'))
-    plt.close()
-    # Third figure: we rename figure to Feat 1, Feat 2, ...
-    feature_renamed = [f'Feat {i+1}' for i in range(X_final.shape[1])]
-    feat_renaming_dict = dict(zip(X_final.columns, feature_renamed))
-    logger.info(f"Feature renaming dictionary: {feat_renaming_dict}")
-    X_final_renamed = X_final.rename(columns=feat_renaming_dict)
-    shap_values = explainer(X_final_renamed)
-    shap.summary_plot(shap_values, X_final_renamed, show=False)
-    plt.title('SHAP summary plot for the final model (features renamed)')
-    plt.savefig(os.path.join(output_folder, 'shap_summary_final_model_renamed.png'))
-    plt.close()
+    # # We plot the Shap plot of the final model
+    # shap_values = explainer(X_final)
+    # # First figure
+    # plt.figure()
+    # shap.plots.beeswarm(shap_values, show=False)
+    # plt.title('SHAP values for the final model')
+    # plt.savefig(os.path.join(output_folder, 'shap_final_model.png'))
+    # plt.close()
+    # # Second figure
+    # plt.figure()
+    # shap.summary_plot(shap_values, X_final)
+    # plt.title('SHAP summary plot for the final model')
+    # plt.savefig(os.path.join(output_folder, 'shap_summary_final_model.png'))
+    # plt.close()
+    # # Third figure: we rename figure to Feat 1, Feat 2, ...
+    # feature_renamed = [f'Feat {i+1}' for i in range(X_final.shape[1])]
+    # feat_renaming_dict = dict(zip(X_final.columns, feature_renamed))
+    # logger.info(f"Feature renaming dictionary: {feat_renaming_dict}")
+    # X_final_renamed = X_final.rename(columns=feat_renaming_dict)
+    # shap_values = explainer(X_final_renamed)
+    # shap.summary_plot(shap_values, X_final_renamed, show=False)
+    # plt.title('SHAP summary plot for the final model (features renamed)')
+    # plt.savefig(os.path.join(output_folder, 'shap_summary_final_model_renamed.png'))
+    # plt.close()
 
     return None
 
