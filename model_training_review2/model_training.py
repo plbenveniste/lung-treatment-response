@@ -33,6 +33,7 @@ import shap
 from loguru import logger
 import gc
 from sklearn.calibration import calibration_curve
+from scipy.interpolate import interp1d
 
 import warnings
 warnings.filterwarnings('ignore')
@@ -310,11 +311,22 @@ def main():
     plt.savefig(os.path.join(output_folder, 'calibration_curves_folds.png'))
     plt.close()
 
-    # We plot the average calibration curve
+    # Define a common set of x-values (predicted probabilities) for interpolation
+    x_common = np.linspace(0, 1, 100)
+
+    # Interpolate each curve to the common x-values
+    interpolated_curves = []
+    for prob_pred, prob_true in calibration_curves:
+        interp_func = interp1d(prob_pred, prob_true, bounds_error=False, fill_value="extrapolate")
+        y_interp = interp_func(x_common)
+        interpolated_curves.append(y_interp)
+
+    # Average the interpolated curves
+    mean_prob_true = np.mean(interpolated_curves, axis=0)
+
+    # Plot the mean calibration curve
     plt.figure()
-    mean_prob_true = np.mean([cc[0] for cc in calibration_curves], axis=0)
-    mean_prob_pred = np.mean([cc[1] for cc in calibration_curves], axis=0)
-    plt.plot(mean_prob_pred, mean_prob_true, marker='o', label='Mean calibration')
+    plt.plot(x_common, mean_prob_true, marker='.', label='Mean calibration')
     plt.plot([0, 1], [0, 1], linestyle='--', label='Perfect calibration')
     plt.xlabel('Predicted probability')
     plt.ylabel('True probability')
@@ -366,44 +378,6 @@ def main():
     }
     logger.info("=== Fold results ===")
     logger.info(f"Fold results: {metrics}")
-
-    # # Print the importance of each feature:
-    # shap.initjs()
-    # explainer = shap.Explainer(final_model, seed=42)
-    # importances = np.abs(explainer.shap_values(X_final)).mean(axis=0)
-    # feature_importances_df = pd.DataFrame({
-    #     'Feature': selected_features,
-    #     'Importance': importances
-    # }).sort_values('Importance', ascending=False)
-
-    # for i, feature in enumerate(feature_importances_df['Feature']):
-    #     # Print feature and importance
-    #     logger.info(f"{i+1}: {feature_importances_df['Importance'].iloc[i]:.4f}: {feature}")
-
-    # # We plot the Shap plot of the final model
-    # shap_values = explainer(X_final)
-    # # First figure
-    # plt.figure()
-    # shap.plots.beeswarm(shap_values, show=False)
-    # plt.title('SHAP values for the final model')
-    # plt.savefig(os.path.join(output_folder, 'shap_final_model.png'))
-    # plt.close()
-    # # Second figure
-    # plt.figure()
-    # shap.summary_plot(shap_values, X_final)
-    # plt.title('SHAP summary plot for the final model')
-    # plt.savefig(os.path.join(output_folder, 'shap_summary_final_model.png'))
-    # plt.close()
-    # # Third figure: we rename figure to Feat 1, Feat 2, ...
-    # feature_renamed = [f'Feat {i+1}' for i in range(X_final.shape[1])]
-    # feat_renaming_dict = dict(zip(X_final.columns, feature_renamed))
-    # logger.info(f"Feature renaming dictionary: {feat_renaming_dict}")
-    # X_final_renamed = X_final.rename(columns=feat_renaming_dict)
-    # shap_values = explainer(X_final_renamed)
-    # shap.summary_plot(shap_values, X_final_renamed, show=False)
-    # plt.title('SHAP summary plot for the final model (features renamed)')
-    # plt.savefig(os.path.join(output_folder, 'shap_summary_final_model_renamed.png'))
-    # plt.close()
 
     return None
 
