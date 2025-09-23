@@ -27,6 +27,10 @@ from loguru import logger
 from sklearn.model_selection import StratifiedKFold
 from skopt import BayesSearchCV
 from skopt.space import Real, Integer
+import warnings
+warnings.filterwarnings('ignore')
+warnings.simplefilter('ignore', UserWarning)
+warnings.simplefilter(action='ignore', category=FutureWarning)
 
 
 def parse_args():
@@ -193,8 +197,10 @@ def main():
     feature_importances_df = pd.DataFrame(feature_importances, columns=X.columns)
     feature_importances_df = feature_importances_df.describe().T[['mean', 'std']].sort_values(by='mean', ascending=False)
     logger.info("\n=== Feature importances (mean ± std) ===")
-    for column in feature_importances_df.columns:
-        logger.info(f"{column}: {feature_importances_df[column]['mean']:.4f} ± {feature_importances_df[column]['std']:.4f}")
+    for feature in feature_importances_df.index:
+        mean_val = feature_importances_df.loc[feature, 'mean']
+        std_val = feature_importances_df.loc[feature, 'std']
+        logger.info(f"{feature}: {mean_val:.4f} ± {std_val:.4f}")
 
     ################################################################################################
     ######## SECOND SCENARIO : MODEL FOR PREDICTION OF SURVIVAL FOR METASTASIS PATIENTS ############
@@ -295,8 +301,10 @@ def main():
     feature_importances_df = pd.DataFrame(feature_importances, columns=X.columns)
     feature_importances_df = feature_importances_df.describe().T[['mean', 'std']].sort_values(by='mean', ascending=False)
     logger.info("\n=== Feature importances (mean ± std) ===")
-    for column in feature_importances_df.columns:
-        logger.info(f"{column}: {feature_importances_df[column]['mean']:.4f} ± {feature_importances_df[column]['std']:.4f}")
+    for feature in feature_importances_df.index:
+        mean_val = feature_importances_df.loc[feature, 'mean']
+        std_val = feature_importances_df.loc[feature, 'std']
+        logger.info(f"{feature}: {mean_val:.4f} ± {std_val:.4f}")
 
 
     ################################################################################################
@@ -396,8 +404,10 @@ def main():
     feature_importances_df = pd.DataFrame(feature_importances, columns=X.columns)
     feature_importances_df = feature_importances_df.describe().T[['mean', 'std']].sort_values(by='mean', ascending=False)
     logger.info("\n=== Feature importances (mean ± std) ===")
-    for column in feature_importances_df.columns:
-        logger.info(f"{column}: {feature_importances_df[column]['mean']:.4f} ± {feature_importances_df[column]['std']:.4f}")
+    for feature in feature_importances_df.index:
+        mean_val = feature_importances_df.loc[feature, 'mean']
+        std_val = feature_importances_df.loc[feature, 'std']
+        logger.info(f"{feature}: {mean_val:.4f} ± {std_val:.4f}")
     
     return None
 
