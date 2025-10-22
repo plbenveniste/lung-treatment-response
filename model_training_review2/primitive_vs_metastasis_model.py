@@ -71,22 +71,17 @@ def main():
     data = pd.read_csv(input_data)
 
     # We remove data which is note useful to make the averaging easier
-    data = data.drop(columns=['DDD', 'cause_DC', 'Date_R_PTV', 'Date_R_homo', 'Date_R_med', 'Date_R_contro', 'Date_R_horspoum', 'Reponse', 'delai_fin_rechutePTV', 'delai_fin_rechuteHomo',
-                                'delai_fin_rechuteMed', 'delai_fin_rechuteContro', 'delai_fin_rechuteHorspoum','subject_nodule', 'nodule' ])
-    
+    data = data.drop(columns=['DDD', 'cause_DC', 'Date_R_PTV', 'Date_R_homo', 'Date_R_med', 'Date_R_contro', 'Date_R_horspoum', 'Reponse', 'rechute_PTV', 'rechute_homo',
+                           'rechute_med', 'rechute_contro', 'rechute_horspoum', 'delai_fin_rechutePTV', 'delai_fin_rechuteHomo','delai_fin_rechuteMed',
+                           'delai_fin_rechuteContro', 'delai_fin_rechuteHorspoum','subject_nodule', 'nodule', 'follow_up' ])
 
     # We average the columns for the same patients across the different nodules
     data_grouped = data.groupby('subject_id').mean().reset_index()
 
-    # We build the column relapse which takes 1 if either of the relapse occur ('rechute_PTV', 'rechute_homo', 'rechute_med', 'rechute_contro', 'rechute_horspoum')
-    data_grouped['relapse'] = data_grouped['rechute_PTV'] + data_grouped['rechute_homo'] + data_grouped['rechute_med'] + data_grouped['rechute_contro'] + data_grouped['rechute_horspoum']
-    # Modify the 'relapse' column to take value 1 if it is above 0
-    data_grouped['relapse'] = data_grouped['relapse'].apply(lambda x: 1 if x > 0 else 0)
-
     # Print number of primitive patients and number of metastasis
     logger.info(f"Total number of patients: {data_grouped.shape[0]}")
-    logger.info(f"Number of primitive patients: {data_grouped[data_grouped['relapse']==0].shape[0]}")
-    logger.info(f"Number of metastasis patients: {data_grouped[data_grouped['relapse']!=0].shape[0]}")
+    logger.info(f"Number of primitive patients: {data_grouped[data_grouped['primitif']==1].shape[0]}")
+    logger.info(f"Number of metastasis patients: {data_grouped[data_grouped['primitif']!=1].shape[0]}")
     logger.info("\n")
 
     ################################################################################################
@@ -95,12 +90,12 @@ def main():
 
     logger.info(" ------------- Model for prediction of survival for primitive patients -------------")
 
-    # We remove patients that are metastasis (have relapse different from 0)
-    data_primitive = data_grouped[data_grouped['relapse'] == 0]
+    # We remove patients that are metastasis 
+    data_primitive = data_grouped[data_grouped['primitif'] != 1]
 
     # Split into features and target
     y = data_primitive[['DC']]
-    x = data_primitive.drop(columns=['DC', 'delai_fin_DC', 'subject_id', 'relapse', 'follow_up', 'rechute_PTV', 'rechute_homo', 'rechute_med', 'rechute_contro', 'rechute_horspoum'])
+    x = data_primitive.drop(columns=['DC', 'delai_fin_DC', 'subject_id'])
     
     # In this case, because we are only interested in the prediction of survival, we extract only the 'DC'
     y = y[['DC']]
@@ -208,12 +203,12 @@ def main():
 
     logger.info(" ------------- Model for prediction of survival for metastasis patients -------------")
 
-    # We keep patients that are metastasis (have relapse different from 0)
-    data_metastasis = data_grouped[data_grouped['relapse'] == 1]
+    # We keep patients that are metastasis
+    data_metastasis = data_grouped[data_grouped['primitif'] != 1]
 
     # Split into features and target
     y = data_metastasis[['DC']]
-    x = data_metastasis.drop(columns=['DC', 'delai_fin_DC', 'subject_id', 'relapse', 'follow_up'])
+    x = data_metastasis.drop(columns=['DC', 'delai_fin_DC', 'subject_id'])
     
     # In this case, because we are only interested in the prediction of survival, we extract only the 'DC'
     y = y[['DC']]
@@ -225,7 +220,6 @@ def main():
     logger.info(f'Target data shape: {y.shape}')
     logger.info(f"Number of subjects which died: {y[y['DC']==1].shape[0]}")
     logger.info(f"Feature columns: {list(x.columns)}")
-    logger.info("As we can see in the features, the model predicts survival for metastasis patients knowing which metastasis they have")
 
     # Plot the distribution of 'delai_fin_DC'
     data_metastasis['delai_fin_DC'].hist()
@@ -307,108 +301,6 @@ def main():
         logger.info(f"{feature}: {mean_val:.4f} ± {std_val:.4f}")
 
 
-    ################################################################################################
-    ######## THIRD SCENARIO : MODEL FOR PREDICTION OF SURVIVAL FOR ALL PATIENTS ####################
-    ################################################################################################
-
-    logger.info(" ------------- Model for prediction of survival for all patients -------------")
-
-    # We don't remove any patient
-    data_all = data_grouped
-
-    # Split into features and target but keep 'relapse' as a feature
-    y = data_all[['DC']]
-    x = data_all.drop(columns=['DC', 'delai_fin_DC', 'subject_id', 'rechute_PTV', 'rechute_homo', 'rechute_med', 'rechute_contro', 'rechute_horspoum', 'follow_up'])
-    # We replace all nan values by 0 in 'DC'
-    y.fillna(0, inplace=True)
-
-    # Describe x and y
-    logger.info(f'Feature data shape: {x.shape}')
-    logger.info(f'Target data shape: {y.shape}')
-    logger.info(f"Number of subjects which died: {y[y['DC']==1].shape[0]}")
-    logger.info(f"Feature columns: {list(x.columns)}")
-    logger.info("As we can see in the features, the model predicts survival for all patients knowing whether they are primitive or metastasis (relapse feature)")
-
-    # Plot the distribution of 'delai_fin_DC'
-    plt.figure()
-    data_all['delai_fin_DC'].hist()
-    plt.title('Distribution of survival time between end of treatment and\n death (in days) for those that died')
-    plt.xlabel('Survival time')
-    plt.ylabel('Number of subjects')
-    plt.savefig(os.path.join(output_folder, "survival_time_distribution_all_patients.png"))
-    plt.close()
-
-    X = x
-    y = y
-    # === Définition des folds externes (évaluation) ===
-    outer_cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
-
-    # Stockage des résultats
-    outer_results = []
-    feature_importances = []
-    best_params_list = []
-    for train_idx, test_idx in outer_cv.split(X, y):
-        X_train, X_test = X.iloc[train_idx], X.iloc[test_idx]
-        y_train, y_test = y.iloc[train_idx], y.iloc[test_idx]
-
-        # === Recherche Bayésienne interne (hyperparamètres) ===
-        inner_cv = StratifiedKFold(n_splits=3, shuffle=True, random_state=42)
-        base_model = XGBClassifier(seed=42, use_label_encoder=False, eval_metric="logloss", objective='binary:logistic')
-
-        search = BayesSearchCV(
-            estimator=base_model,
-            search_spaces=search_spaces,
-            n_iter=50,                # Ajustable
-            n_jobs=1,
-            cv=inner_cv,
-            random_state=42,
-            scoring='roc_auc'
-        )
-        search.fit(X_train, y_train)
-
-        # Meilleur modèle trouvé
-        best_model = search.best_estimator_
-
-        # === Évaluation sur le fold externe ===
-        y_test_pred = best_model.predict(X_test)
-        y_test_proba = best_model.predict_proba(X_test)[:, 1]
-
-        precision_train, recall_train, _ = precision_recall_curve(y_test, y_test_proba)
-
-        # Calcul des métriques
-        metrics = {
-            "ROC AUC": roc_auc_score(y_test, y_test_proba),
-            "Brier": brier_score_loss(y_test, y_test_proba),
-            "Precision": precision_score(y_test, y_test_pred),
-            "Recall": recall_score(y_test, y_test_pred),
-            "Accuracy": accuracy_score(y_test, y_test_pred),
-            "AUC-PR": auc(recall_train, precision_train),
-            "F1_score": f1_score(y_test, y_test_pred)
-        }
-        outer_results.append(metrics)
-        best_params_list.append(search.best_params_)
-        logger.info("=== Fold results ===")
-        logger.info(f"Fold results: {metrics}")
-        logger.info(f"Best hyperparameters: {search.best_params_}")
-
-        # Feature importances
-        feature_importances.append(best_model.feature_importances_)
-
-    # === Résultats globaux (moyenne ± std sur les folds externes) ===
-    results_df = pd.DataFrame(outer_results)
-    logger.info("\n=== Résultats Nested CV ===")
-    for element in results_df.columns:
-        logger.info(f"{element}: {results_df[element].mean():.4f} ± {results_df[element].std():.4f}")
-
-    # Print the feature importances
-    feature_importances_df = pd.DataFrame(feature_importances, columns=X.columns)
-    feature_importances_df = feature_importances_df.describe().T[['mean', 'std']].sort_values(by='mean', ascending=False)
-    logger.info("\n=== Feature importances (mean ± std) ===")
-    for feature in feature_importances_df.index:
-        mean_val = feature_importances_df.loc[feature, 'mean']
-        std_val = feature_importances_df.loc[feature, 'std']
-        logger.info(f"{feature}: {mean_val:.4f} ± {std_val:.4f}")
-    
     return None
 
    
