@@ -53,10 +53,14 @@ def main():
     feature_columns = ['num\n_patient', 'sexe', 'age', 'BMI', 'score\n_charlson', 'dyspnee\n_NYHA', 'OMS', 'tabac', 'tabac\n_PA', 'tabac\n_sevre', 
                 'histo', 'T', 'centrale', 'dose\n_tot', 'etalement', 'vol\n_GTV', 'vol\n_PTV', 'vol\n_ITV', 'couv\n_PTV', 'BED\n_10', 'Last\n_news', 'date\n_TDM']
     outputs_columnns = ['DC', 'DDD', 'cause_DC', 'Date_R\n_PTV', 'Date_R\n_homo','Date_R\n_med','Date_R\n_contro','Date_R\n_horspoum', 'Reponse', 'date\n_fin']
+    # In the end, we decide to add all features
     newly_added_columns = ['poids', 'taille', 'age_50\n_1', 'IDM\n_1', 'ICC\n_1', 'vasc\n_periph\n_1', 'AIT\n_AVC\n_1', 'demence\n_1', 'BPCO\n_1', 'systeme\n_1',
                             'ulcere\n_1', 'hepatique\n_mod\n_1', 'diabete\n_1', 'diabete\n_comp\n_2', 'hemiplegie\n_2', 'IRC\n_2', 'kc\n_local\n_2', 'leucemie\n_2',
                             'lymphome\n_2', 'hepatique\n_HTP\n_3', 'kc\n_meta\n_6', 'sida\n_6']
-    all_columns = feature_columns + outputs_columnns + newly_added_columns
+    last_added_columns = ['SAS', 'HTA', 'primitif', 'N','M', 'nbre_cibles', 'loc', 'ATCD\n_neo_NP','ATCD\n_neo\n_pulm',
+                           '\nATCD\n_loc_1', '\r\nATCD\r\n_loc_2', '\r\nATCD\r\n_loc_3', 'ATCD\n_histo', 'dose\n_fraction',
+                           'min\n_PTV', 'mean\n_PTV', 'max\n_PTV', ]
+    all_columns = feature_columns + outputs_columnns + newly_added_columns + last_added_columns
 
     # We select the data of interest
     data = data[all_columns]
@@ -107,7 +111,17 @@ def main():
         "lymphome\n_2": "score_lymphome",
         "hepatique\n_HTP\n_3": "score_hepatique_HTP",
         "kc\n_meta\n_6": "score_kc_meta",
-        "sida\n_6": "score_sida"
+        "sida\n_6": "score_sida",
+        "ATCD\n_neo_NP": "ATCD_neo_NP",
+        "ATCD\n_neo\n_pulm": "ATCD_neo_pulm",
+        "\nATCD\n_loc_1": "ATCD_loc_1",
+        '\r\nATCD\r\n_loc_2': 'ATCD_loc_2',
+        '\r\nATCD\r\n_loc_3': 'ATCD_loc_3',
+        'ATCD\n_histo': 'ATCD_histo',
+        'dose\n_fraction': 'dose_fraction',
+        'min\n_PTV': 'min_PTV',
+        'mean\n_PTV': 'mean_PTV',
+        'max\n_PTV': 'max_PTV',
     }
     data = data.rename(columns=change_columns)
 
@@ -247,6 +261,29 @@ def main():
     data['score_kc_meta'] = data['score_kc_meta'].fillna(0)
     data['score_sida'] = data['score_sida'].apply(pd.to_numeric)
     data['score_sida'] = data['score_sida'].fillna(0)
+
+    # we preprocess the last added columns
+    data['SAS'] = data['SAS'].apply(pd.to_numeric)
+    data['HTA'] = data['HTA'].apply(pd.to_numeric)
+    data['primitif'] = data['primitif'].apply(pd.to_numeric)
+    data['N'] = data['N'].apply(pd.to_numeric)
+    data['M'] = data['M'].apply(pd.to_numeric)
+    data['nbre_cibles'] = data['nbre_cibles'].apply(pd.to_numeric)
+    data['loc'] = data['loc'].apply(pd.to_numeric)
+    data['ATCD_neo_NP'] = data['ATCD_neo_NP'].apply(pd.to_numeric)
+    data['ATCD_neo_pulm'] = data['ATCD_neo_pulm'].apply(pd.to_numeric)
+    data['ATCD_loc_1'] = data['ATCD_loc_1'].apply(lambda x: str(x).split('_')[0] if pd.notnull(x) else x)
+    data['ATCD_loc_1'] = data['ATCD_loc_1'].apply(pd.to_numeric)
+    data['ATCD_loc_2'] = data['ATCD_loc_2'].apply(lambda x: str(x).split('_')[0] if pd.notnull(x) else x)
+    data['ATCD_loc_2'] = data['ATCD_loc_2'].apply(pd.to_numeric)
+    data['ATCD_loc_3'] = data['ATCD_loc_3'].apply(lambda x: str(x).split('_')[0] if pd.notnull(x) else x)
+    data['ATCD_loc_3'] = data['ATCD_loc_3'].apply(pd.to_numeric)
+    # On enlève la colonne ATCD_histo car elle est trop complexe à traiter
+    data = data.drop(columns=['ATCD_histo'])
+    data['dose_fraction'] = data['dose_fraction'].apply(pd.to_numeric)
+    data['min_PTV'] = data['min_PTV'].apply(pd.to_numeric)
+    data['mean_PTV'] = data['mean_PTV'].apply(pd.to_numeric)
+    data['max_PTV'] = data['max_PTV'].apply(pd.to_numeric)
 
     # We remove the columns that are not useful anymore
     data = data.drop(columns=['date_TDM', 'last_news'])
