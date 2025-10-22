@@ -73,9 +73,17 @@ def main():
     data = data.drop(columns=['DC', 'delai_fin_DC', 'DDD', 'cause_DC', 'Date_R_PTV', 'Date_R_homo', 'Date_R_med', 'Date_R_contro',
                               'Date_R_horspoum','subject_nodule', 'nodule', 'Reponse', 'rechute_PTV','delai_fin_rechutePTV'])
     
+    # For dosimetric data, we sum the features together by subject (so that if there is two nodules, the dosimetric data reflects the sum of the two doses)
+    data_dosi = data[['subject_id', 'dose_tot', 'etalement', 'vol_GTV', 'vol_PTV', 'vol_ITV', 'couv_PTV', 'BED_10', 'dose_fraction', 'min_PTV', 'mean_PTV', 'max_PTV']]
+    # We group the data by subject and sum the dosi features
+    data_dosi = data_dosi.groupby('subject_id').sum().reset_index()
 
-    # We average the columns for the same patients across the different nodules
-    data_grouped = data.groupby('subject_id').mean().reset_index()
+    # For the rest of the data, we average
+    data_rest = data.drop(columns=['dose_tot', 'etalement', 'vol_GTV', 'vol_PTV', 'vol_ITV', 'couv_PTV', 'BED_10', 'dose_fraction', 'min_PTV', 'mean_PTV', 'max_PTV'])
+    data_rest = data_rest.groupby('subject_id').mean().reset_index()
+
+    # We concatenate the dosimetric and rest of the data
+    data_grouped = pd.merge(data_dosi, data_rest, on='subject_id', how='outer')
 
     # For all values in the 'rechute' columns, we replace values above 0 by 1 and the rest is 0
     data_grouped['rechute_homo'] = data_grouped['rechute_homo'].apply(lambda x: 1 if x > 0 else 0)
