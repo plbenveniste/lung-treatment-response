@@ -215,11 +215,11 @@ def main():
     y_final = y
 
     # Identify the best hyperparameters based on previous tuning
-    best_hyperparams = best_params_list[np.argmax([res['ROC AUC'] for res in outer_results])]
-    logger.info(f"Best hyperparameters for the final model: {best_hyperparams}")
+    # best_hyperparams = best_params_list[np.argmax([res['ROC AUC'] for res in outer_results])]
+    logger.info(f"Best hyperparameters for the final model: {best_overall_params}")
 
     # Train the final model
-    final_model = XGBClassifier(seed=42, use_label_encoder=False, eval_metric="logloss", objective='binary:logistic', **best_hyperparams)
+    final_model = XGBClassifier(seed=42, use_label_encoder=False, eval_metric="logloss", objective='binary:logistic', **best_overall_params)
     final_model.fit(X_final, y_final)
 
     # Save the final model
