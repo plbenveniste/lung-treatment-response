@@ -316,7 +316,7 @@ def main():
 
     # Interpolate each curve to the common x-values
     interpolated_curves = []
-    for prob_pred, prob_true in calibration_curves:
+    for prob_true, prob_pred in calibration_curves:
         interp_func = interp1d(prob_pred, prob_true, bounds_error=False, fill_value="extrapolate")
         y_interp = interp_func(x_common)
         interpolated_curves.append(y_interp)
