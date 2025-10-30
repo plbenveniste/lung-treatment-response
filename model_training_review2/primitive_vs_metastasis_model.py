@@ -17,16 +17,24 @@ Example:
 Author: Pierre-Louis Benveniste
 """
 import pandas as pd
+import numpy as np
 import argparse
-import matplotlib.pyplot as plt
+import os
+from pathlib import Path
+from sklearn.model_selection import train_test_split, StratifiedKFold
 from xgboost import XGBClassifier
 from sklearn.metrics import roc_auc_score, auc, brier_score_loss, precision_recall_curve, accuracy_score, roc_curve, precision_score, recall_score, confusion_matrix, f1_score
-from sklearn.feature_selection import VarianceThreshold
-import os
-from loguru import logger
-from sklearn.model_selection import StratifiedKFold
-from skopt import BayesSearchCV
 from skopt.space import Real, Integer
+from skopt import BayesSearchCV
+import matplotlib.pyplot as plt
+# import pickle
+# from sklearn.feature_selection import VarianceThreshold
+import shap
+from loguru import logger
+import gc
+from sklearn.calibration import calibration_curve
+from scipy.interpolate import interp1d
+
 import warnings
 warnings.filterwarnings('ignore')
 warnings.simplefilter('ignore', UserWarning)
@@ -76,12 +84,12 @@ def main():
                            'delai_fin_rechuteContro', 'delai_fin_rechuteHorspoum','subject_nodule', 'nodule', 'follow_up' ])
 
     # For dosimetric data, we sum the features together by subject (so that if there is two nodules, the dosimetric data reflects the sum of the two doses)
-    data_dosi = data[['subject_id', 'dose_tot', 'etalement', 'vol_GTV', 'vol_PTV', 'vol_ITV', 'couv_PTV', 'BED_10', 'dose_fraction', 'min_PTV', 'mean_PTV', 'max_PTV']]
+    data_dosi = data[['subject_id', 'dose_tot', 'etalement', 'vol_GTV', 'vol_PTV', 'vol_ITV', 'couv_PTV', 'BED_10']] #, 'dose_fraction', 'min_PTV', 'mean_PTV', 'max_PTV']]
     # We group the data by subject and sum the dosi features
     data_dosi = data_dosi.groupby('subject_id').sum().reset_index()
 
     # For the rest of the data, we average
-    data_rest = data.drop(columns=['dose_tot', 'etalement', 'vol_GTV', 'vol_PTV', 'vol_ITV', 'couv_PTV', 'BED_10', 'dose_fraction', 'min_PTV', 'mean_PTV', 'max_PTV'])
+    data_rest = data.drop(columns=['dose_tot', 'etalement', 'vol_GTV', 'vol_PTV', 'vol_ITV', 'couv_PTV', 'BED_10']) #, 'dose_fraction', 'min_PTV', 'mean_PTV', 'max_PTV'])
     data_rest = data_rest.groupby('subject_id').mean().reset_index()
 
     # We concatenate the dosimetric and rest of the data
@@ -99,8 +107,10 @@ def main():
 
     logger.info(" ------------- Model for prediction of survival for primitive patients -------------")
 
-    # We remove patients that are metastasis 
-    data_primitive = data_grouped[data_grouped['primitif'] != 1]
+    # We keep primitive patients
+    data_primitive = data_grouped[data_grouped['primitif'] == 1]
+    logger.info(f"Number of primitive patients: {data_primitive.shape[0]}")
+    logger.info(f"Number of features: {data_primitive.shape[1]}")
 
     # Split into features and target
     y = data_primitive[['DC']]
@@ -190,6 +200,7 @@ def main():
 
         # Feature importances
         feature_importances.append(best_model.feature_importances_)
+        break
 
     # === Résultats globaux (moyenne ± std sur les folds externes) ===
     results_df = pd.DataFrame(outer_results)
@@ -206,6 +217,141 @@ def main():
         std_val = feature_importances_df.loc[feature, 'std']
         logger.info(f"{feature}: {mean_val:.4f} ± {std_val:.4f}")
 
+    # For the best model, we get the feature importance using SHAP
+    best_overall_model_idx = np.argmax([res['ROC AUC'] for res in outer_results])
+    best_overall_params = best_params_list[best_overall_model_idx]
+    best_overall_model = XGBClassifier(seed=42, use_label_encoder=False, eval_metric="logloss", objective='binary:logistic', **best_overall_params)
+    best_overall_model.fit(X, y)
+    explainer = shap.Explainer(best_overall_model, seed=42)
+    importances = np.abs(explainer.shap_values(X)).mean(axis=0)
+    importance_df = pd.DataFrame({
+        'Feature': X.columns,
+        'Importance': importances
+    }).sort_values('Importance', ascending=False)
+    # Print the top 20 feature performances
+    logger.info('Top feature importances from the best overall model: Importance, feature')
+    for i, feature in enumerate(importance_df['Feature'][:20]):
+        # Print feature and importance
+        logger.info(f"{i+1}: {importance_df['Importance'].iloc[i]:.4f}: {feature}")
+
+    # free memory 
+    del best_overall_model, explainer, importances, results_df, outer_results, best_params_list, search, base_model
+    gc.collect()
+
+    #########################################################
+    # Training of the final model which uses only 20 features:
+    #########################################################
+    # We select the 20 most important features
+    top_n = 20
+    selected_features = importance_df['Feature'][:top_n].values
+    X_selected = X[selected_features]
+    logger.info(f"Features selected for the final model: {str(list(selected_features))}")
+
+    # We keep the same search space and outer_cv
+    search_spaces = search_spaces
+    outer_cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
+
+    # Stockage des résultats
+    outer_results = []
+    feature_importances = []
+    calibration_curves = []
+    best_params_list = []
+    for train_idx, test_idx in outer_cv.split(X_selected, y):
+        X_train, X_test = X_selected.iloc[train_idx], X_selected.iloc[test_idx]
+        y_train, y_test = y.iloc[train_idx], y.iloc[test_idx]
+
+        # === Recherche Bayésienne interne (hyperparamètres) ===
+        inner_cv = StratifiedKFold(n_splits=3, shuffle=True, random_state=42)
+        base_model = XGBClassifier(seed=42, use_label_encoder=False, eval_metric="logloss", objective='binary:logistic')
+
+        search = BayesSearchCV(
+            estimator=base_model,
+            search_spaces=search_spaces,
+            n_iter=50,                # Ajustable
+            n_jobs=1,
+            cv=inner_cv,
+            random_state=42,
+            scoring='roc_auc'
+        )
+        search.fit(X_train, y_train)
+
+        # Meilleur modèle trouvé
+        best_model = search.best_estimator_
+
+        # === Évaluation sur le fold externe ===
+        y_test_pred = best_model.predict(X_test)
+        y_test_proba = best_model.predict_proba(X_test)[:, 1]
+
+        precision_train, recall_train, _ = precision_recall_curve(y_test, y_test_proba)
+
+        # Calcul des métriques
+        metrics = {
+            "ROC AUC": roc_auc_score(y_test, y_test_proba),
+            "Brier": brier_score_loss(y_test, y_test_proba),
+            "Precision": precision_score(y_test, y_test_pred),
+            "Recall": recall_score(y_test, y_test_pred),
+            "Accuracy": accuracy_score(y_test, y_test_pred),
+            "AUC-PR": auc(recall_train, precision_train),
+            "F1_score": f1_score(y_test, y_test_pred)
+        }
+        outer_results.append(metrics)
+        best_params_list.append(search.best_params_)
+        logger.info("=== Fold results ===")
+        logger.info(f"Fold results: {metrics}")
+        logger.info(f"Best hyperparameters: {search.best_params_}")
+
+        # Get calibration curve
+        prob_true, prob_pred = calibration_curve(y_test, y_test_proba, n_bins=10)
+        calibration_curves.append((prob_true, prob_pred))
+        break
+
+    # === Résultats globaux (moyenne ± std sur les folds externes) ===
+    results_df = pd.DataFrame(outer_results)
+    logger.info("\n=== Résultats Nested CV ===")
+    for element in results_df.columns:
+        logger.info(f"{element}: {results_df[element].mean():.4f} ± {results_df[element].std():.4f}")
+
+    # We plot the calibration curve averaged over the folds
+    plt.figure()
+    for i, (prob_true, prob_pred) in enumerate(calibration_curves):
+        plt.plot(prob_pred, prob_true, marker='o', label=f'Fold {i+1}')
+    plt.plot([0, 1], [0, 1], linestyle='--', label='Perfect calibration')
+    plt.xlabel('Predicted probability')
+    plt.ylabel('True probability')
+    plt.title('Calibration curves for each fold')
+    plt.legend()
+    plt.savefig(os.path.join(output_folder, 'calibration_curves_folds_primitive.png'))
+    plt.close()
+
+    # Define a common set of x-values (predicted probabilities) for interpolation
+    ## It is between min_value of prob_pred and max_value of prob_pred
+    x_common = np.linspace(min(prob_pred), max(prob_pred), 100)
+
+    # Interpolate each curve to the common x-values
+    interpolated_curves = []
+    for prob_true, prob_pred in calibration_curves:
+        interp_func = interp1d(prob_pred, prob_true, bounds_error=False, fill_value="extrapolate")
+        y_interp = interp_func(x_common)
+        interpolated_curves.append(y_interp)
+
+    # Average the interpolated curves
+    mean_prob_true = np.mean(interpolated_curves, axis=0)
+
+    # Plot the mean calibration curve
+    plt.figure()
+    plt.plot(x_common, mean_prob_true, marker='.', label='Mean calibration')
+    plt.plot([0, 1], [0, 1], linestyle='--', label='Perfect calibration')
+    plt.xlabel('Predicted probability')
+    plt.ylabel('True probability')
+    plt.title('Mean Calibration curve across folds')
+    plt.legend()
+    plt.savefig(os.path.join(output_folder, 'mean_calibration_curve_primitive.png'))
+    plt.close()
+
+    # Need to remove some stuff to free memory
+    del base_model, search, best_model, X_train, X_test, y_train, y_test, X_selected
+    gc.collect()    
+
     ################################################################################################
     ######## SECOND SCENARIO : MODEL FOR PREDICTION OF SURVIVAL FOR METASTASIS PATIENTS ############
     ################################################################################################
@@ -214,6 +360,8 @@ def main():
 
     # We keep patients that are metastasis
     data_metastasis = data_grouped[data_grouped['primitif'] != 1]
+    logger.info(f"Number of metastasis patients: {data_metastasis.shape[0]}")
+    logger.info(f"Number of features: {data_metastasis.shape[1]}")
 
     # Split into features and target
     y = data_metastasis[['DC']]
@@ -293,6 +441,7 @@ def main():
 
         # Feature importances
         feature_importances.append(best_model.feature_importances_)
+        break
 
     # === Résultats globaux (moyenne ± std sur les folds externes) ===
     results_df = pd.DataFrame(outer_results)
@@ -308,6 +457,140 @@ def main():
         mean_val = feature_importances_df.loc[feature, 'mean']
         std_val = feature_importances_df.loc[feature, 'std']
         logger.info(f"{feature}: {mean_val:.4f} ± {std_val:.4f}")
+
+    # For the best model, we get the feature importance using SHAP
+    best_overall_model_idx = np.argmax([res['ROC AUC'] for res in outer_results])
+    best_overall_params = best_params_list[best_overall_model_idx]
+    best_overall_model = XGBClassifier(seed=42, use_label_encoder=False, eval_metric="logloss", objective='binary:logistic', **best_overall_params)
+    best_overall_model.fit(X, y)
+    explainer = shap.Explainer(best_overall_model, seed=42)
+    importances = np.abs(explainer.shap_values(X)).mean(axis=0)
+    importance_df = pd.DataFrame({
+        'Feature': X.columns,
+        'Importance': importances
+    }).sort_values('Importance', ascending=False)
+    # Print the top 20 feature performances
+    logger.info('Top feature importances from the best overall model: Importance, feature')
+    for i, feature in enumerate(importance_df['Feature'][:20]):
+        # Print feature and importance
+        logger.info(f"{i+1}: {importance_df['Importance'].iloc[i]:.4f}: {feature}")
+
+    # free memory 
+    del best_overall_model, explainer, importances, results_df, outer_results, best_params_list, search, base_model
+    gc.collect()
+
+    #########################################################
+    # Training of the final model which uses only 20 features:
+    #########################################################
+    # We select the 20 most important features
+    top_n = 20
+    selected_features = importance_df['Feature'][:top_n].values
+    X_selected = X[selected_features]
+    logger.info(f"Features selected for the final model: {str(list(selected_features))}")
+
+    # We keep the same search space and outer_cv
+    search_spaces = search_spaces
+    outer_cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
+
+    # Stockage des résultats
+    outer_results = []
+    feature_importances = []
+    calibration_curves = []
+    best_params_list = []
+    for train_idx, test_idx in outer_cv.split(X_selected, y):
+        X_train, X_test = X_selected.iloc[train_idx], X_selected.iloc[test_idx]
+        y_train, y_test = y.iloc[train_idx], y.iloc[test_idx]
+
+        # === Recherche Bayésienne interne (hyperparamètres) ===
+        inner_cv = StratifiedKFold(n_splits=3, shuffle=True, random_state=42)
+        base_model = XGBClassifier(seed=42, use_label_encoder=False, eval_metric="logloss", objective='binary:logistic')
+
+        search = BayesSearchCV(
+            estimator=base_model,
+            search_spaces=search_spaces,
+            n_iter=50,                # Ajustable
+            n_jobs=1,
+            cv=inner_cv,
+            random_state=42,
+            scoring='roc_auc'
+        )
+        search.fit(X_train, y_train)
+
+        # Meilleur modèle trouvé
+        best_model = search.best_estimator_
+
+        # === Évaluation sur le fold externe ===
+        y_test_pred = best_model.predict(X_test)
+        y_test_proba = best_model.predict_proba(X_test)[:, 1]
+
+        precision_train, recall_train, _ = precision_recall_curve(y_test, y_test_proba)
+
+        # Calcul des métriques
+        metrics = {
+            "ROC AUC": roc_auc_score(y_test, y_test_proba),
+            "Brier": brier_score_loss(y_test, y_test_proba),
+            "Precision": precision_score(y_test, y_test_pred),
+            "Recall": recall_score(y_test, y_test_pred),
+            "Accuracy": accuracy_score(y_test, y_test_pred),
+            "AUC-PR": auc(recall_train, precision_train),
+            "F1_score": f1_score(y_test, y_test_pred)
+        }
+        outer_results.append(metrics)
+        best_params_list.append(search.best_params_)
+        logger.info("=== Fold results ===")
+        logger.info(f"Fold results: {metrics}")
+        logger.info(f"Best hyperparameters: {search.best_params_}")
+
+        # Get calibration curve
+        prob_true, prob_pred = calibration_curve(y_test, y_test_proba, n_bins=10)
+        calibration_curves.append((prob_true, prob_pred))
+
+    # === Résultats globaux (moyenne ± std sur les folds externes) ===
+    results_df = pd.DataFrame(outer_results)
+    logger.info("\n=== Résultats Nested CV ===")
+    for element in results_df.columns:
+        logger.info(f"{element}: {results_df[element].mean():.4f} ± {results_df[element].std():.4f}")
+
+    # We plot the calibration curve averaged over the folds
+    plt.figure()
+    for i, (prob_true, prob_pred) in enumerate(calibration_curves):
+        plt.plot(prob_pred, prob_true, marker='o', label=f'Fold {i+1}')
+    plt.plot([0, 1], [0, 1], linestyle='--', label='Perfect calibration')
+    plt.xlabel('Predicted probability')
+    plt.ylabel('True probability')
+    plt.title('Calibration curves for each fold')
+    plt.legend()
+    plt.savefig(os.path.join(output_folder, 'calibration_curves_folds_metastasis.png'))
+    plt.close()
+
+    # Define a common set of x-values (predicted probabilities) for interpolation
+    x_common = np.linspace(0, 1, 100)
+
+    # Interpolate each curve to the common x-values
+    interpolated_curves = []
+    for prob_true, prob_pred in calibration_curves:
+        interp_func = interp1d(prob_pred, prob_true, bounds_error=False, fill_value="extrapolate")
+        y_interp = interp_func(x_common)
+        interpolated_curves.append(y_interp)
+
+    # Average the interpolated curves
+    mean_prob_true = np.mean(interpolated_curves, axis=0)
+
+    # Plot the mean calibration curve
+    plt.figure()
+    plt.plot(x_common, mean_prob_true, marker='.', label='Mean calibration')
+    plt.plot([0, 1], [0, 1], linestyle='--', label='Perfect calibration')
+    plt.xlabel('Predicted probability')
+    plt.ylabel('True probability')
+    plt.title('Mean Calibration curve across folds')
+    plt.legend()
+    plt.savefig(os.path.join(output_folder, 'mean_calibration_curve_metastasis.png'))
+    plt.close()
+
+    # Need to remove some stuff to free memory
+    del base_model, search, best_model, X_train, X_test, y_train, y_test, X_selected
+    gc.collect()    
+
 
 
     return None
