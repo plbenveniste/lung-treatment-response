@@ -25,7 +25,7 @@ from sklearn.metrics import roc_auc_score, auc, brier_score_loss, precision_reca
 from skopt.space import Real, Integer
 from skopt import BayesSearchCV
 import matplotlib.pyplot as plt
-# import pickle
+import pickle
 # from sklearn.feature_selection import VarianceThreshold
 import shap
 from loguru import logger
@@ -321,7 +321,9 @@ def main():
 
     # Define a common set of x-values (predicted probabilities) for interpolation
     ## It is between min_value of prob_pred and max_value of prob_pred
-    x_common = np.linspace(min(prob_pred), max(prob_pred), 100)
+    min_x = min([min(prob_pred) for prob_true, prob_pred in calibration_curves])
+    max_x = max([max(prob_pred) for prob_true, prob_pred in calibration_curves])
+    x_common = np.linspace(min_x, max_x, 100)
 
     # Interpolate each curve to the common x-values
     interpolated_curves = []
@@ -347,6 +349,46 @@ def main():
     # Need to remove some stuff to free memory
     del base_model, search, best_model, X_train, X_test, y_train, y_test, X_selected
     gc.collect()
+
+    ####################################################
+    # Final model training on the whole dataset with the selected features
+    ####################################################
+    logger.info("\n=== Final model training on the whole dataset with the selected features ===")
+    # Select features
+    X_final = X_selected
+    y_final = y
+
+    # Identify the best hyperparameters based on previous tuning
+    best_hyperparams = best_params_list[np.argmax([res['ROC AUC'] for res in outer_results])]
+    logger.info(f"Best hyperparameters for the final model: {best_hyperparams}")
+
+    # Train the final model
+    final_model = XGBClassifier(seed=42, use_label_encoder=False, eval_metric="logloss", objective='binary:logistic', **best_hyperparams)
+    final_model.fit(X_final, y_final)
+
+    # Save the final model
+    model_path = os.path.join(output_folder, 'final_primitive_model.pkl')
+    with open(model_path, 'wb') as f:
+        pickle.dump(final_model, f)
+    logger.info(f"Final model saved to {model_path}")   
+
+    # Eval the final model on the whole dataset
+    y_final_pred = final_model.predict(X_final)
+    y_final_proba = final_model.predict_proba(X_final)[:, 1]
+
+    # Calcul des métriques
+    precision_final, recall_final, _ = precision_recall_curve(y_final, y_final_proba)
+    metrics = {
+        "ROC AUC": roc_auc_score(y_final, y_final_proba),
+        "Brier": brier_score_loss(y_final, y_final_proba),
+        "Precision": precision_score(y_final, y_final_pred),
+        "Recall": recall_score(y_final, y_final_pred),
+        "Accuracy": accuracy_score(y_final, y_final_pred),
+        "AUC-PR": auc(recall_final, precision_final),
+        "F1_score": f1_score(y_final, y_final_pred)
+    }
+    logger.info("=== Final model results on the whole dataset ===")
+    logger.info(f"Final model results: {metrics}")
 
     return None
 
