@@ -347,7 +347,7 @@ def main():
     plt.close()
 
     # Need to remove some stuff to free memory
-    del base_model, search, best_model, X_train, X_test, y_train, y_test, X_selected
+    del base_model, search, best_model, X_train, X_test, y_train, y_test
     gc.collect()
 
     ####################################################
@@ -392,7 +392,6 @@ def main():
 
     return None
 
-   
 
 if __name__ == '__main__':
     main()
