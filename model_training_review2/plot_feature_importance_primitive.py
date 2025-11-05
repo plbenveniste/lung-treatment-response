@@ -7,12 +7,13 @@ Input:
     -data-path: path to the dataset
     -log-path: path to the log file
     -output: path to output folder
+    -primitif: whether to use primitive patients or not (1 for primitive, 0 for metastasis)
 
 Output:
     None
 
 Example usage:
-    python plot_feature_importance_primitive.py --model_path model.pkl --data_path data.csv --log_path training.log --output output_folder
+    python plot_feature_importance_primitive.py --model_path model.pkl --data_path data.csv --log_path training.log --output output_folder --primitif 1
 
 Author: Pierre-Louis Benveniste
 """
@@ -33,6 +34,7 @@ def parse_args():
     parser.add_argument("--data-path", type=str, required=True, help="Path to the dataset file.")
     parser.add_argument("--log-path", type=str, required=True, help="Path to the log file.")
     parser.add_argument("--output", type=str, required=True, help="Path to save the plot.")
+    parser.add_argument("--primitif", type=int, choices=[0, 1], required=True, help="Whether to use primitive patients (1) or metastasis patients (0).")
     return parser.parse_args()
 
 
@@ -49,7 +51,7 @@ def main():
     os.makedirs(output_folder, exist_ok=True)
 
     # Clear the log file
-    log_file = os.path.join(output_folder, f'log_primitive_shap.txt')
+    log_file = os.path.join(output_folder, f'log_model_shap.txt')
     with open(log_file, 'w') as f:
         f.write('')
     logger.add(log_file)
@@ -79,12 +81,17 @@ def main():
     data_grouped = pd.merge(data_dosi, data_rest, on='subject_id', how='outer')
 
     # We keep primitive patients
-    data_primitive = data_grouped[data_grouped['primitif'] == 1]
+    if args.primitif == 1:
+        logger.info(" ------------- Model for prediction of survival for primitive patients -------------")
+        data_prim_or_meta = data_grouped[data_grouped['primitif'] == 1]
+    else:
+        logger.info(" ------------- Model for prediction of survival for metastasis patients -------------")
+        data_prim_or_meta = data_grouped[data_grouped['primitif'] != 1]
 
     # Split into features and target
-    y = data_primitive[['DC']]
-    x = data_primitive.drop(columns=['DC', 'delai_fin_DC', 'subject_id'])
-    
+    y = data_prim_or_meta[['DC']]
+    x = data_prim_or_meta.drop(columns=['DC', 'delai_fin_DC', 'subject_id'])
+
     # In this case, because we are only interested in the prediction of survival, we extract only the 'DC'
     y = y[['DC']]
     # We replace all nan values by 0 in 'DC'
