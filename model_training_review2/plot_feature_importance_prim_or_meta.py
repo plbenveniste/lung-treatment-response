@@ -91,6 +91,8 @@ def main():
     # Split into features and target
     y = data_prim_or_meta[['DC']]
     x = data_prim_or_meta.drop(columns=['DC', 'delai_fin_DC', 'subject_id'])
+    logger.info(f"Number of patients: {x.shape[0]}")
+    logger.info(f"Number of features: {x.shape[1]}")
 
     # In this case, because we are only interested in the prediction of survival, we extract only the 'DC'
     y = y[['DC']]
