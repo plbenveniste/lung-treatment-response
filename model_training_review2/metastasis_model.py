@@ -318,20 +318,28 @@ def main():
     plt.savefig(os.path.join(output_folder, 'calibration_curves_folds_metastasis.png'))
     plt.close()
 
-    # Define a common set of x-values (predicted probabilities) for interpolation
-    ## It is between min_value of prob_pred and max_value of prob_pred
-    min_x = min([min(prob_pred) for prob_true, prob_pred in calibration_curves])
-    max_x = max([max(prob_pred) for prob_true, prob_pred in calibration_curves])
-    x_common = np.linspace(min_x, max_x, 100)
+    # Define a common x range limited strictly to [0, 1]
+    x_common = np.linspace(0, 1, 100)
 
-    # Interpolate each curve to the common x-values
     interpolated_curves = []
     for prob_true, prob_pred in calibration_curves:
-        interp_func = interp1d(prob_pred, prob_true, bounds_error=False, fill_value="extrapolate")
+        # Ensure sorting of the calibration points
+        order = np.argsort(prob_pred)
+        prob_pred = np.array(prob_pred)[order]
+        prob_true = np.array(prob_true)[order]
+
+        # Bound the interpolation domain to [min, max] and avoid extrapolation
+        interp_func = interp1d(
+            prob_pred, prob_true,
+            kind="linear",
+            bounds_error=False,
+            fill_value=(prob_true[0], prob_true[-1])
+        )
         y_interp = interp_func(x_common)
+        # Clip to [0,1] in case of minor numerical drift
+        y_interp = np.clip(y_interp, 0, 1)
         interpolated_curves.append(y_interp)
 
-    # Average the interpolated curves
     mean_prob_true = np.mean(interpolated_curves, axis=0)
 
     # Plot the mean calibration curve
