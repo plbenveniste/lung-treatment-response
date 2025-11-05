@@ -25,8 +25,7 @@ from sklearn.metrics import roc_auc_score, auc, brier_score_loss, precision_reca
 from skopt.space import Real, Integer
 from skopt import BayesSearchCV
 import matplotlib.pyplot as plt
-# import pickle
-# from sklearn.feature_selection import VarianceThreshold
+import pickle
 import shap
 from loguru import logger
 import gc
@@ -100,20 +99,20 @@ def main():
     logger.info("\n")
 
     ################################################################################################
-    ######## MODEL FOR PREDICTION OF SURVIVAL FOR METASTASIS PATIENTS ############
+    ######## FIRST SCENARIO : MODEL FOR PREDICTION OF SURVIVAL FOR METASTASIS PATIENTS ##############
     ################################################################################################
 
     logger.info(" ------------- Model for prediction of survival for metastasis patients -------------")
 
-    # We keep patients that are metastasis
+    # We keep metastasis patients
     data_metastasis = data_grouped[data_grouped['primitif'] != 1]
-    logger.info(f"Number of metastasis patients: {data_metastasis.shape[0]}")
-    logger.info(f"Number of features: {data_metastasis.shape[1]}")
 
     # Split into features and target
     y = data_metastasis[['DC']]
     x = data_metastasis.drop(columns=['DC', 'delai_fin_DC', 'subject_id'])
-    
+    logger.info(f"Number of primitive patients: {x.shape[0]}")
+    logger.info(f"Number of features: {x.shape[1]}")
+
     # In this case, because we are only interested in the prediction of survival, we extract only the 'DC'
     y = y[['DC']]
     # We replace all nan values by 0 in 'DC'
@@ -133,6 +132,16 @@ def main():
     plt.savefig(os.path.join(output_folder, "survival_time_distribution_metastasis_patients.png"))
     plt.close()
 
+    # We perform bayesian hyperparameter tuning
+    # I used this blog to build it: https://xgboosting.com/most-important-xgboost-hyperparameters-to-tune/
+    search_spaces = {
+        'max_depth': Integer(3, 10), # Lower values prevent overfitting
+        'min_child_weight': Integer(1, 10), # Higher values prevent overfitting # Suggested to go as high as 5 by LeChat
+        'subsample': Real(0.5, 1), # Lower values prevent overfitting
+        'colsample_bytree': Real(0.001, 1), # Lower values prevent overfitting # Suggested to go as low as 0.5 by LeChat
+        'learning_rate': Real(0.01, 0.5, prior='log-uniform'),
+        'scale_pos_weight': Integer(2, 8), # To handle unbalanced classes
+    }
     X = x
     y = y
     # === Définition des folds externes (évaluation) ===
@@ -188,7 +197,6 @@ def main():
 
         # Feature importances
         feature_importances.append(best_model.feature_importances_)
-        break
 
     # === Résultats globaux (moyenne ± std sur les folds externes) ===
     results_df = pd.DataFrame(outer_results)
@@ -311,7 +319,10 @@ def main():
     plt.close()
 
     # Define a common set of x-values (predicted probabilities) for interpolation
-    x_common = np.linspace(min(prob_pred), max(prob_pred), 100)
+    ## It is between min_value of prob_pred and max_value of prob_pred
+    min_x = min([min(prob_pred) for prob_true, prob_pred in calibration_curves])
+    max_x = max([max(prob_pred) for prob_true, prob_pred in calibration_curves])
+    x_common = np.linspace(min_x, max_x, 100)
 
     # Interpolate each curve to the common x-values
     interpolated_curves = []
@@ -335,5 +346,51 @@ def main():
     plt.close()
 
     # Need to remove some stuff to free memory
-    del base_model, search, best_model, X_train, X_test, y_train, y_test, X_selected
-    gc.collect()    
+    del base_model, search, best_model, X_train, X_test, y_train, y_test
+    gc.collect()
+
+    ####################################################
+    # Final model training on the whole dataset with the selected features
+    ####################################################
+    logger.info("\n=== Final model training on the whole dataset with the selected features ===")
+    # Select features
+    X_final = X_selected
+    y_final = y
+
+    # Identify the best hyperparameters based on previous tuning
+    best_hyperparams = best_params_list[np.argmax([res['ROC AUC'] for res in outer_results])]
+    logger.info(f"Best hyperparameters for the final model: {best_hyperparams}")
+
+    # Train the final model
+    final_model = XGBClassifier(seed=42, use_label_encoder=False, eval_metric="logloss", objective='binary:logistic', **best_hyperparams)
+    final_model.fit(X_final, y_final)
+
+    # Save the final model
+    model_path = os.path.join(output_folder, 'final_metastasis_model.pkl')
+    with open(model_path, 'wb') as f:
+        pickle.dump(final_model, f)
+    logger.info(f"Final model saved to {model_path}")   
+
+    # Eval the final model on the whole dataset
+    y_final_pred = final_model.predict(X_final)
+    y_final_proba = final_model.predict_proba(X_final)[:, 1]
+
+    # Calcul des métriques
+    precision_final, recall_final, _ = precision_recall_curve(y_final, y_final_proba)
+    metrics = {
+        "ROC AUC": roc_auc_score(y_final, y_final_proba),
+        "Brier": brier_score_loss(y_final, y_final_proba),
+        "Precision": precision_score(y_final, y_final_pred),
+        "Recall": recall_score(y_final, y_final_pred),
+        "Accuracy": accuracy_score(y_final, y_final_pred),
+        "AUC-PR": auc(recall_final, precision_final),
+        "F1_score": f1_score(y_final, y_final_pred)
+    }
+    logger.info("=== Final model results on the whole dataset ===")
+    logger.info(f"Final model results: {metrics}")
+
+    return None
+
+
+if __name__ == '__main__':
+    main()
