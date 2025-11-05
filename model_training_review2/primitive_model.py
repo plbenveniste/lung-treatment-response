@@ -107,13 +107,13 @@ def main():
 
     # We keep primitive patients
     data_primitive = data_grouped[data_grouped['primitif'] == 1]
-    logger.info(f"Number of primitive patients: {data_primitive.shape[0]}")
-    logger.info(f"Number of features: {data_primitive.shape[1]}")
 
     # Split into features and target
     y = data_primitive[['DC']]
     x = data_primitive.drop(columns=['DC', 'delai_fin_DC', 'subject_id'])
-    
+    logger.info(f"Number of primitive patients: {x.shape[0]}")
+    logger.info(f"Number of features: {x.shape[1]}")
+
     # In this case, because we are only interested in the prediction of survival, we extract only the 'DC'
     y = y[['DC']]
     # We replace all nan values by 0 in 'DC'
