@@ -109,7 +109,7 @@ def main():
 
     # Split into features and target
     y = data_metastasis[['DC']]
-    x = data_metastasis.drop(columns=['DC', 'delai_fin_DC', 'subject_id'])
+    x = data_metastasis.drop(columns=['DC', 'delai_fin_DC', 'subject_id', 'primitif'])
     logger.info(f"Number of primitive patients: {x.shape[0]}")
     logger.info(f"Number of features: {x.shape[1]}")
 
