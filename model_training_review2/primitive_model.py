@@ -82,12 +82,12 @@ def main():
                            'delai_fin_rechuteContro', 'delai_fin_rechuteHorspoum','subject_nodule', 'nodule', 'follow_up' ])
 
     # For dosimetric data, we sum the features together by subject (so that if there is two nodules, the dosimetric data reflects the sum of the two doses)
-    data_dosi = data[['subject_id', 'dose_tot', 'etalement', 'vol_GTV', 'vol_PTV', 'vol_ITV', 'couv_PTV', 'BED_10']] #, 'dose_fraction', 'min_PTV', 'mean_PTV', 'max_PTV']]
+    data_dosi = data[['subject_id', 'dose_tot', 'etalement', 'vol_GTV', 'vol_PTV', 'vol_ITV', 'couv_PTV', 'BED_10', 'dose_fraction', 'min_PTV', 'mean_PTV', 'max_PTV']]
     # We group the data by subject and sum the dosi features
     data_dosi = data_dosi.groupby('subject_id').sum().reset_index()
 
     # For the rest of the data, we average
-    data_rest = data.drop(columns=['dose_tot', 'etalement', 'vol_GTV', 'vol_PTV', 'vol_ITV', 'couv_PTV', 'BED_10']) #, 'dose_fraction', 'min_PTV', 'mean_PTV', 'max_PTV'])
+    data_rest = data.drop(columns=['dose_tot', 'etalement', 'vol_GTV', 'vol_PTV', 'vol_ITV', 'couv_PTV', 'BED_10', 'dose_fraction', 'min_PTV', 'mean_PTV', 'max_PTV'])
     data_rest = data_rest.groupby('subject_id').mean().reset_index()
 
     # We concatenate the dosimetric and rest of the data
