@@ -56,57 +56,22 @@ def main():
     # Load the dataset
     data = pd.read_csv(input_data)
 
-    # Load the dataset
-    data_all = pd.read_csv(input_data)
-
+    # In the primitif
     if primitif:
         # We keep primitive patients
-        data_all = data_all[data_all['primitif'] == 1]
+        data_all = data[data['primitif'] == 1]
     elif not primitif:
         # We keep metastasis patients
-        data_all = data_all[data_all['primitif'] != 1]
-
-    # # Remove columns that are not useful for averaging
-    # cols_others = [
-    #     'DDD', 'cause_DC', 'Date_R_PTV', 'Date_R_homo', 'Date_R_med', 'Date_R_contro', 'Date_R_horspoum',
-    #     'Reponse', 'rechute_PTV', 'rechute_homo', 'rechute_med', 'rechute_contro', 'rechute_horspoum',
-    #     'delai_fin_rechutePTV', 'delai_fin_rechuteHomo', 'delai_fin_rechuteMed',
-    #     'delai_fin_rechuteContro', 'delai_fin_rechuteHorspoum',
-    #     'subject_nodule', 'nodule', 'follow_up', 'DC', 'delai_fin_DC'
-    # ]
-    # logger.info(f"Columns removed for averaging: {cols_others}")
-    # logger.info(f"Number of columns removed for averaging: {len(cols_others)}")
-    # data = data_all.drop(columns=cols_others)
-
-    # # We average all features
-    # data_grouped = data.groupby('subject_id').mean().reset_index()
-
-    # # We re-add the removed features
-    # data_removed = data_all[['subject_id'] + cols_others].drop_duplicates(subset='subject_id')
-    # # We merge the data
-    # data_grouped = pd.merge(data_grouped, data_removed, on='subject_id',  how='outer')
-    
-    # # Print number of primitive patients and number of metastasis
-    # logger.info(f"Total number of patients: {data_grouped.shape[0]}")
-    # logger.info(f"Number of primitive patients: {data_grouped[data_grouped['primitif']==1].shape[0]}")
-    # logger.info(f"Number of metastasis patients: {data_grouped[data_grouped['primitif']!=1].shape[0]}")
-    # logger.info("\n")
-
-    
-
-    # # Remove the 'primitif' column
-    # data_grouped = data_grouped.drop(columns=['primitif', 'subject_id'])
-    
-    # logger.info("Analysis of the dataset:")
-    # logger.info(f"Number of columns: {data_grouped.shape[1]}")
-    # logger.info(f"Number of patients: {data_grouped.shape[0]}")
-    # logger.info(f"Columns in the dataset: {data_grouped.columns.tolist()}")
+        data_all = data[data['primitif'] != 1]
 
     # First we focus on the clinical columns:
     logger.info("\n ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------")
     logger.info("Clinical columns:")
     clinical_columns = ['sexe', 'age', 'BMI', 'score_charlson', 'dyspnee_NYHA', 'OMS', 'tabac', 'tabac_PA', 'tabac_sevre', 'histo', 'T', 'centrale', 'poids', 'taille', 'score_age_50', 'score_IDM', 'score_ICC', 'score_vasc_periph', 'score_AIT_AVC', 'score_demence', 'score_BPCO', 'score_systeme', 'score_ulcere', 'score_hepatique_mod', 'score_diabete', 'score_diabete_comp', 'score_hemiplegie', 'score_IRC', 'score_kc_local', 'score_leucemie', 'score_lymphome', 'score_hepatique_HTP', 'score_kc_meta', 'score_sida', 'SAS', 'HTA', 'N', 'M', 'nbre_cibles', 'loc', 'ATCD_neo_NP', 'ATCD_neo_pulm', 'ATCD_loc_1', 'ATCD_loc_2', 'ATCD_loc_3']
     data_clinical = data_all[['subject_id'] + clinical_columns]
+    # remove L803_2 and L810_2 from data_clinical if present
+    data_clinical = data_clinical[~data_clinical['subject_id'].isin(['L803_2', 'L810_2'])]
+    logger.info(f"Total number of subject IDs after removing L803_2 and L810_2: {data_clinical['subject_id'].nunique()}")
     # For clinical columns, we group the data by subject_id and take the first value
     data_grouped = data_clinical.groupby('subject_id').mean().reset_index()
     logger.info(f"Total number of patients: {data_grouped.shape[0]}")
@@ -207,7 +172,7 @@ def main():
         logger.info(f"  Median: {data_all[col].median()}, [{data_all[col].min()} - {data_all[col].max()}]")
         logger.info(f"  Number of NaNs: {data_all[col].isna().sum()}")
     
-
+    return None
 
 
 if __name__ == '__main__':
