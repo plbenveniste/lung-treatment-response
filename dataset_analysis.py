@@ -56,22 +56,25 @@ def main():
     # Load the dataset
     data = pd.read_csv(input_data)
 
-    # In the primitif
-    if primitif:
-        # We keep primitive patients
-        data_all = data[data['primitif'] == 1]
-    elif not primitif:
-        # We keep metastasis patients
-        data_all = data[data['primitif'] != 1]
-
     # First we focus on the clinical columns:
     logger.info("\n ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------")
+    ## We need to filter the data depending on primitif or metastasis
+    ### If a patient has a prim and a meta, he is meta
+    ### List all subject_id with primitif !=1
+    subject_ids_meta = data[data['primitif'] != 1]['subject_id'].unique().tolist()
+    if primitif:
+        # We remove all subject_id with primitif !=1
+        data_all = data[~data['subject_id'].isin(subject_ids_meta)]
+    else:
+        # We keep all subject_id with primitif !=1
+        data_all = data[data['subject_id'].isin(subject_ids_meta)]
+    
     logger.info("Clinical columns:")
     clinical_columns = ['sexe', 'age', 'BMI', 'score_charlson', 'dyspnee_NYHA', 'OMS', 'tabac', 'tabac_PA', 'tabac_sevre', 'histo', 'T', 'centrale', 'poids', 'taille', 'score_age_50', 'score_IDM', 'score_ICC', 'score_vasc_periph', 'score_AIT_AVC', 'score_demence', 'score_BPCO', 'score_systeme', 'score_ulcere', 'score_hepatique_mod', 'score_diabete', 'score_diabete_comp', 'score_hemiplegie', 'score_IRC', 'score_kc_local', 'score_leucemie', 'score_lymphome', 'score_hepatique_HTP', 'score_kc_meta', 'score_sida', 'SAS', 'HTA', 'N', 'M', 'nbre_cibles', 'loc', 'ATCD_neo_NP', 'ATCD_neo_pulm', 'ATCD_loc_1', 'ATCD_loc_2', 'ATCD_loc_3']
     data_clinical = data_all[['subject_id'] + clinical_columns]
     # remove L803_2 and L810_2 from data_clinical if present
-    data_clinical = data_clinical[~data_clinical['subject_id'].isin(['L803_2', 'L810_2'])]
-    logger.info(f"Total number of subject IDs after removing L803_2 and L810_2: {data_clinical['subject_id'].nunique()}")
+    # data_clinical = data_clinical[~data_clinical['subject_id'].isin(['L803_2', 'L810_2'])]
+    # logger.info(f"Total number of subject IDs after removing L803_2 and L810_2: {data_clinical['subject_id'].nunique()}")
     # For clinical columns, we group the data by subject_id and take the first value
     data_grouped = data_clinical.groupby('subject_id').mean().reset_index()
     logger.info(f"Total number of patients: {data_grouped.shape[0]}")
@@ -96,6 +99,17 @@ def main():
     logger.info("\n")
     # Delete the data_grouped to free memory
     del data_grouped
+
+    ##############
+    # For the rest, it is focusing on nodules
+    ##############
+    # In the primitif
+    if primitif:
+        # We keep primitive patients
+        data_all = data[data['primitif'] == 1]
+    elif not primitif:
+        # We keep metastasis patients
+        data_all = data[data['primitif'] != 1]
 
     logger.info("\n ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------")
     logger.info("Dosimetric columns:")
