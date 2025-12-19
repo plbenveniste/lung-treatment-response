@@ -219,6 +219,8 @@ def main():
         if icc.loc['ICC3', 'ICC']<0.8:
             columns_to_remove_after_icc.append(feature)
             associated_column_icc_score.append(icc.loc['ICC3', 'ICC'])
+    
+    print("Columns removed after ICC computation : ", columns_to_remove_after_icc)
 
     # We remove the columns which have an ICC<0.8
     merged_data = merged_data.drop(columns=columns_to_remove_after_icc)
