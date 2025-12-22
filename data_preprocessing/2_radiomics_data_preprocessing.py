@@ -3,7 +3,7 @@ This file deals with the pre-preprocessing of the individual csv files
 
 Args:
     input: Path to the folder containing the csv files
-    output: Path to the output folder
+    output-file: Path to the output file
 
 Returns:
     None
@@ -29,7 +29,7 @@ def parse_args():
     """
     parser = argparse.ArgumentParser(description='Preprocess the data from the lung cancer response dataset')
     parser.add_argument('--input', type=str, help='Path to the folder containing the csv files')
-    parser.add_argument('--output', type=str, help='Path to the output folder')
+    parser.add_argument('--output-file', type=str, help='Path to the output file')
     return parser.parse_args()
 
 
@@ -42,7 +42,7 @@ def main():
     # We parse the arguments
     args = parse_args()
     input_path = args.input
-    output_folder = args.output
+    output_file = args.output_file
 
     # Initialisation of the merged dataset
     merged_data = pd.DataFrame()
@@ -199,10 +199,10 @@ def main():
             # We remove the column
             merged_data = merged_data.drop(columns=column)
             print("Column {} has been removed because it contained only nan".format(column))
-        # if more than 80% of the values are nan we remove the column
-        elif merged_data[column].isnull().sum() > 0.5*len(merged_data):
-            merged_data = merged_data.drop(columns=column)
-            print("Column {} has been removed because it contained more than 50% of nan".format(column))
+        # # if more than 50% of the values are nan we remove the column
+        # elif merged_data[column].isnull().sum() > 0.5*len(merged_data):
+        #     merged_data = merged_data.drop(columns=column)
+        #     print("Column {} has been removed because it contained more than 50% of nan".format(column))
     
     # We compute the ICC for each feature and keep only the features which have an ICC>0.8
     # We first define the rater column : is rater 1 if "Camille" in INFO_NameOfRoi and 0 otherwise
@@ -219,6 +219,8 @@ def main():
         if icc.loc['ICC3', 'ICC']<0.8:
             columns_to_remove_after_icc.append(feature)
             associated_column_icc_score.append(icc.loc['ICC3', 'ICC'])
+    
+    print("Columns removed after ICC computation : ", columns_to_remove_after_icc)
 
     # We remove the columns which have an ICC<0.8
     merged_data = merged_data.drop(columns=columns_to_remove_after_icc)
@@ -243,7 +245,7 @@ def main():
 
     # We save the output_data
     output_data = output_data.T
-    output_data.to_csv(os.path.join(output_folder, 'radiomics_data_preprocessed.csv'))            
+    output_data.to_csv(output_file)
 
     return None
 

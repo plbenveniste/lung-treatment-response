@@ -4,13 +4,13 @@ This script is used to merge the preprocessed dataset built using the clinical d
 Args:
     --clini: path to the csv file containing the preprocessed clinical data
     --radio: path to the csv file containing the preprocessed clinical data
-    --output: path to the folder where the merged dataset will be saved
+    --output-file : path to the file where the merged dataset will be saved
 
 Returns:
     None
 
 Example run:
-    python mergin_preprocessed_datasets.py --clini /path/to/clinical.csv --radio /path/to/radiomics.csv --output /path/to/output_folder
+    python mergin_preprocessed_datasets.py --clini /path/to/clinical.csv --radio /path/to/radiomics.csv --output-file /path/to/output_folder
 
 Author: Pierre-Louis Benveniste
 """
@@ -29,7 +29,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description='Preprocess the data from the lung cancer response dataset')
     parser.add_argument('--clini', type=str, help='Path to the csv file containing the preprocessed clinical data')
     parser.add_argument('--radio', type=str, help='Path to the csv file containing the preprocessed clinical data')
-    parser.add_argument('--output', type=str, help='Path to the folder where the merged dataset will be saved')
+    parser.add_argument('--output-file', type=str, help='Path to the file where the merged dataset will be saved')
     return parser.parse_args()
 
 
@@ -80,9 +80,9 @@ def main():
     merged_data.columns = [col.split('(')[0] for col in merged_data.columns]
 
     # We save the merged dataset
-    output_folder = args.output
-    merged_data.to_csv(os.path.join(output_folder, 'merged_data.csv'), index=False)
-    
+    output_file = args.output_file
+    merged_data.to_csv(output_file, index=False)
+
     return None
 
 
