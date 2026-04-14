@@ -231,12 +231,19 @@ def main():
         selected_features = X.columns[selected_mask].tolist()
         # Also export feature importance from the Lasso model for this fold
         feature_importances = search.best_estimator_.named_steps['selector'].estimator_.coef_[0]
-        feature_importance_dict = dict(zip(X.columns, feature_importances))
-        feature_importances_across_folds.append(feature_importance_dict)
+        feature_importances_df = pd.DataFrame(columns=['Feature', 'Importance', 'Count_Selected'])
+        for feat, imp in zip(X.columns, feature_importances):
+            # If feature is already in the df, we add the importance to the existing one and increment the count, otherwise we create a new row
+            if feat in feature_importances_df['Feature'].values:
+                feature_importances_df.loc[feature_importances_df['Feature'] == feat, 'Importance'] += abs(imp)
+                feature_importances_df.loc[feature_importances_df['Feature'] == feat, 'Count_Selected'] += 1
+            else:
+                new_row = {'Feature': feat, 'Importance': abs(imp), 'Count_Selected': 1 if feat in selected_features else 0}
+                feature_importances_df = pd.concat([feature_importances_df, pd.DataFrame([new_row])], ignore_index=True)
+            # Update the stability tracker
+            if feat in selected_features:
+                feature_stability_tracker[feat] += 1
 
-        for feat in selected_features:
-            feature_stability_tracker[feat] += 1
-        
         # Performance Evaluation on the unseen Outer Fold (Test Set)
         best_model = search.best_estimator_
         y_test_proba = best_model.predict_proba(X_test)[:, 1]
@@ -266,6 +273,12 @@ def main():
     results_df = pd.DataFrame(outer_results)
     logger.info("\nNested CV mean Metrics:")
     logger.info(results_df.mean())
+
+    print("Feature Importances across folds:")
+    feature_importances_df = feature_importances_df.sort_values(by='Count_Selected', ascending=False)
+    print(feature_importances_df)
+    # Save the feature importances to a csv file
+    feature_importances_df.to_csv(os.path.join(output_folder, "feature_importances_report.csv"), index=False)
 
     # Export Feature Stability to CSV
     stability_df = pd.DataFrame.from_dict(feature_stability_tracker, orient='index', columns=['Selection_Count'])
