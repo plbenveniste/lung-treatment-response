@@ -183,7 +183,7 @@ def main():
 
     outer_results = []
     calibration_curves = []
-    feature_importances_across_folds = []
+    feature_importances_df = pd.DataFrame(columns=['Feature', 'Importance', 'Count_Selected'])
     # Dictionary to track how many times each feature is selected across outer folds
     feature_stability_tracker = {feat: 0 for feat in X.columns}
     
@@ -225,12 +225,13 @@ def main():
         search.fit(X_train, y_train)
 
         # TRACK STABILITY: Identify which 20 features were picked for this fold
+        features_before_selector = search.best_estimator_.named_steps['imputer'].get_feature_names_out(X.columns)
         selected_mask = search.best_estimator_.named_steps['selector'].get_support()
-        selected_features = X.columns[selected_mask].tolist()
+        selected_features = features_before_selector[selected_mask].tolist()
         # Also export feature importance from the Lasso model for this fold
         feature_importances = search.best_estimator_.named_steps['selector'].estimator_.coef_[0]
-        feature_importances_df = pd.DataFrame(columns=['Feature', 'Importance', 'Count_Selected'])
-        for feat, imp in zip(X.columns, feature_importances):
+        for feat in selected_features:
+            imp = feature_importances[X.columns.get_loc(feat)]
             # If feature is already in the df, we add the importance to the existing one and increment the count, otherwise we create a new row
             if feat in feature_importances_df['Feature'].values:
                 feature_importances_df.loc[feature_importances_df['Feature'] == feat, 'Importance'] += abs(imp)
@@ -270,11 +271,21 @@ def main():
     # SUMMARY REPORTING
     results_df = pd.DataFrame(outer_results)
     logger.info("\nNested CV mean Metrics:")
-    logger.info(results_df.mean())
+    # Print metrics for each fold in a table format
+    logger.info(results_df.to_string(index=False))
+    # Print results with std
+    for metric in ["ROC AUC", "Brier", "Precision", "Recall", "Accuracy", "AUC-PR", "F1_score"]:
+        mean_val = results_df[metric].mean()
+        std_val = results_df[metric].std()
+        logger.info(f"{metric}: {mean_val:.4f} ± {std_val:.4f}")
 
-    print("Feature Importances across folds:")
+    logger.info("Feature Importances across folds:")
     feature_importances_df = feature_importances_df.sort_values(by='Count_Selected', ascending=False)
-    print(feature_importances_df)
+    # Remove features which were never selected
+    feature_importances_df = feature_importances_df[feature_importances_df['Count_Selected'] > 0]
+    # Log all lines of the df
+    for _, row in feature_importances_df.iterrows():
+        logger.info(f"Feature: {row['Feature']}, Total Importance: {row['Importance']:.4f}, Selected in {row['Count_Selected']} folds")
     # Save the feature importances to a csv file
     feature_importances_df.to_csv(os.path.join(output_folder, "feature_importances_report.csv"), index=False)
 

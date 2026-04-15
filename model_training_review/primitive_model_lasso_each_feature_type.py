@@ -54,6 +54,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description='Preprocess the data from the lung cancer response dataset')
     parser.add_argument('--input', type=str, help='Path to the csv file containing the merged data')
     parser.add_argument('--output', type=str, help='Path to the folder where the results will be saved')
+    parser.add_argument('--feature-type', type=str, choices=['clini', 'dosi', 'radio'], help='Type of features to use for the model training (clinical, dosimetric or radiomic)')
     return parser.parse_args()
 
 
@@ -72,7 +73,7 @@ def main():
     os.makedirs(output_folder, exist_ok=True)
 
     # Clear the log file
-    log_file = os.path.join(output_folder, f'primitive.txt')
+    log_file = os.path.join(output_folder, f'primitive_{args.feature_type}.txt')
     with open(log_file, 'w') as f:
         f.write('')
     logger.add(log_file)
@@ -125,6 +126,18 @@ def main():
     # Split into features and target
     y = data_primitive[['DC']]
     x = data_primitive.drop(columns=['DC', 'delai_fin_DC', 'subject_id', 'primitif'])
+
+    print(list(x.columns))
+
+    # We select the features to be used:
+    if args.feature_type == 'clini':
+        # Keep colums 
+        x = x[['sexe', 'age', 'BMI', 'score_charlson', 'dyspnee_NYHA', 'OMS', 'tabac', 'tabac_PA', 'tabac_sevre', 'histo', 'T', 'centrale', 'score_age_50', 'score_IDM', 'score_ICC', 'score_vasc_periph', 'score_AIT_AVC', 'score_demence', 'score_BPCO', 'score_systeme', 'score_ulcere', 'score_hepatique_mod', 'score_diabete', 'score_diabete_comp', 'score_hemiplegie', 'score_IRC', 'score_kc_local', 'score_leucemie', 'score_lymphome', 'score_hepatique_HTP', 'score_kc_meta', 'score_sida', 'SAS', 'HTA', 'N', 'M', 'nbre_cibles', 'loc', 'ATCD_neo_NP', 'ATCD_neo_pulm', 'ATCD_loc_1', 'ATCD_loc_2', 'ATCD_loc_3']]
+    elif args.feature_type == 'dosi':
+        x = x[['dose_tot', 'etalement', 'vol_GTV', 'vol_PTV', 'vol_ITV', 'couv_PTV', 'BED_10', 'dose_fraction', 'min_PTV', 'mean_PTV', 'max_PTV']]
+    elif args.feature_type == 'radio':
+        x = x.drop(columns=['sexe', 'age', 'BMI', 'score_charlson', 'dyspnee_NYHA', 'OMS', 'tabac', 'tabac_PA', 'tabac_sevre', 'histo', 'T', 'centrale', 'dose_tot', 'etalement', 'vol_GTV', 'vol_PTV', 'vol_ITV', 'couv_PTV', 'BED_10', 'score_age_50', 'score_IDM', 'score_ICC', 'score_vasc_periph', 'score_AIT_AVC', 'score_demence', 'score_BPCO', 'score_systeme', 'score_ulcere', 'score_hepatique_mod', 'score_diabete', 'score_diabete_comp', 'score_hemiplegie', 'score_IRC', 'score_kc_local', 'score_leucemie', 'score_lymphome', 'score_hepatique_HTP', 'score_kc_meta', 'score_sida', 'SAS', 'HTA', 'N', 'M', 'nbre_cibles', 'loc', 'ATCD_neo_NP', 'ATCD_neo_pulm', 'ATCD_loc_1', 'ATCD_loc_2', 'ATCD_loc_3', 'dose_fraction', 'min_PTV', 'mean_PTV', 'max_PTV'])
+
     logger.info(f"Number of primitive patients: {x.shape[0]}")
     logger.info(f"Number of features: {x.shape[1]}")
 
@@ -139,13 +152,13 @@ def main():
     logger.info(f"Number of subjects which died: {y[y['DC']==1].shape[0]}")
     logger.info(f"Feature columns: {list(x.columns)}")
 
-    # Plot the distribution of 'delai_fin_DC'
-    data_primitive['delai_fin_DC'].hist()
-    plt.title('Distribution of survival time between end of treatment and\n death (in days) for those that died')
-    plt.xlabel('Survival time of primitive patients')
-    plt.ylabel('Number of subjects')
-    plt.savefig(os.path.join(output_folder, "survival_time_distribution_primitive_patients.png"))
-    plt.close()
+    # # Plot the distribution of 'delai_fin_DC'
+    # data_primitive['delai_fin_DC'].hist()
+    # plt.title('Distribution of survival time between end of treatment and\n death (in days) for those that died')
+    # plt.xlabel('Survival time of primitive patients')
+    # plt.ylabel('Number of subjects')
+    # plt.savefig(os.path.join(output_folder, "survival_time_distribution_primitive_patients.png"))
+    # plt.close()
 
     # We perform bayesian hyperparameter tuning
     # I used this blog to build it: https://xgboosting.com/most-important-xgboost-hyperparameters-to-tune/
@@ -205,7 +218,7 @@ def main():
             ('scaler', StandardScaler()),
             ('selector', SelectFromModel(
                 LogisticRegression(penalty='l1', solver='liblinear', random_state=42),
-                max_features=20, 
+                max_features=11 if args.feature_type == 'dosi' else 20,  # Limit to top 20 features (or 11 for dosimetric data which has fewer features)
                 threshold=-np.inf  # Force exactly 20 features
             )),
             ('model', XGBClassifier(
@@ -275,73 +288,68 @@ def main():
     logger.info("\nNested CV mean Metrics:")
     # Print metrics for each fold in a table format
     logger.info(results_df.to_string(index=False))
-    # Print results with std
-    for metric in ["ROC AUC", "Brier", "Precision", "Recall", "Accuracy", "AUC-PR", "F1_score"]:
-        mean_val = results_df[metric].mean()
-        std_val = results_df[metric].std()
-        logger.info(f"{metric}: {mean_val:.4f} ± {std_val:.4f}")
+    
+    # logger.info("Feature Importances across folds:")
+    # feature_importances_df = feature_importances_df.sort_values(by='Count_Selected', ascending=False)
+    # # Remove features which were never selected
+    # feature_importances_df = feature_importances_df[feature_importances_df['Count_Selected'] > 0]
+    # # Log all lines of the df
+    # for _, row in feature_importances_df.iterrows():
+    #     logger.info(f"Feature: {row['Feature']}, Total Importance: {row['Importance']:.4f}, Selected in {row['Count_Selected']} folds")
+    # # Save the feature importances to a csv file
+    # feature_importances_df.to_csv(os.path.join(output_folder, "feature_importances_report.csv"), index=False)
 
-    logger.info("Feature Importances across folds:")
-    feature_importances_df = feature_importances_df.sort_values(by='Count_Selected', ascending=False)
-    # Remove features which were never selected
-    feature_importances_df = feature_importances_df[feature_importances_df['Count_Selected'] > 0]
-    # Log all lines of the df
-    for _, row in feature_importances_df.iterrows():
-        logger.info(f"Feature: {row['Feature']}, Total Importance: {row['Importance']:.4f}, Selected in {row['Count_Selected']} folds")
-    # Save the feature importances to a csv file
-    feature_importances_df.to_csv(os.path.join(output_folder, "feature_importances_report.csv"), index=False)
+    # # Export Feature Stability to CSV
+    # stability_df = pd.DataFrame.from_dict(feature_stability_tracker, orient='index', columns=['Selection_Count'])
+    # stability_df = stability_df.sort_values(by='Selection_Count', ascending=False)
+    # stability_df.to_csv(os.path.join(output_folder, "feature_stability_report.csv"))
 
-    # Export Feature Stability to CSV
-    stability_df = pd.DataFrame.from_dict(feature_stability_tracker, orient='index', columns=['Selection_Count'])
-    stability_df = stability_df.sort_values(by='Selection_Count', ascending=False)
-    stability_df.to_csv(os.path.join(output_folder, "feature_stability_report.csv"))
+    # # We plot the calibration curve averaged over the folds
+    # plt.figure()
+    # for i, (prob_true, prob_pred) in enumerate(calibration_curves):
+    #     plt.plot(prob_pred, prob_true, marker='o', label=f'Fold {i+1}')
+    # plt.plot([0, 1], [0, 1], linestyle='--', label='Perfect calibration')
+    # plt.xlabel('Predicted probability')
+    # plt.ylabel('True probability')
+    # plt.title('Calibration curves for each fold')
+    # plt.legend()
+    # plt.savefig(os.path.join(output_folder, 'calibration_curves_folds_primitive.png'))
+    # plt.close()
 
-    # We plot the calibration curve averaged over the folds
-    plt.figure()
-    for i, (prob_true, prob_pred) in enumerate(calibration_curves):
-        plt.plot(prob_pred, prob_true, marker='o', label=f'Fold {i+1}')
-    plt.plot([0, 1], [0, 1], linestyle='--', label='Perfect calibration')
-    plt.xlabel('Predicted probability')
-    plt.ylabel('True probability')
-    plt.title('Calibration curves for each fold')
-    plt.legend()
-    plt.savefig(os.path.join(output_folder, 'calibration_curves_folds_primitive.png'))
-    plt.close()
+    # # Define a common x range limited strictly to [0, 1]
+    # x_common = np.linspace(0, 1, 100)
 
-    # Define a common x range limited strictly to [0, 1]
-    x_common = np.linspace(0, 1, 100)
+    # interpolated_curves = []
+    # for prob_true, prob_pred in calibration_curves:
+    #     # Ensure sorting of the calibration points
+    #     order = np.argsort(prob_pred)
+    #     prob_pred = np.array(prob_pred)[order]
+    #     prob_true = np.array(prob_true)[order]
 
-    interpolated_curves = []
-    for prob_true, prob_pred in calibration_curves:
-        # Ensure sorting of the calibration points
-        order = np.argsort(prob_pred)
-        prob_pred = np.array(prob_pred)[order]
-        prob_true = np.array(prob_true)[order]
+    #     # Bound the interpolation domain to [min, max] and avoid extrapolation
+    #     interp_func = interp1d(
+    #         prob_pred, prob_true,
+    #         kind="linear",
+    #         bounds_error=False,
+    #         fill_value=(prob_true[0], prob_true[-1])
+    #     )
+    #     y_interp = interp_func(x_common)
+    #     # Clip to [0,1] in case of minor numerical drift
+    #     y_interp = np.clip(y_interp, 0, 1)
+    #     interpolated_curves.append(y_interp)
 
-        # Bound the interpolation domain to [min, max] and avoid extrapolation
-        interp_func = interp1d(
-            prob_pred, prob_true,
-            kind="linear",
-            bounds_error=False,
-            fill_value=(prob_true[0], prob_true[-1])
-        )
-        y_interp = interp_func(x_common)
-        # Clip to [0,1] in case of minor numerical drift
-        y_interp = np.clip(y_interp, 0, 1)
-        interpolated_curves.append(y_interp)
+    # mean_prob_true = np.mean(interpolated_curves, axis=0)
 
-    mean_prob_true = np.mean(interpolated_curves, axis=0)
-
-    # Plot the mean calibration curve
-    plt.figure()
-    plt.plot(x_common, mean_prob_true, marker='.', label='Mean calibration')
-    plt.plot([0, 1], [0, 1], linestyle='--', label='Perfect calibration')
-    plt.xlabel('Predicted probability')
-    plt.ylabel('True probability')
-    plt.title('Mean Calibration curve across folds')
-    plt.legend()
-    plt.savefig(os.path.join(output_folder, 'mean_calibration_curve_primitive.png'))
-    plt.close()
+    # # Plot the mean calibration curve
+    # plt.figure()
+    # plt.plot(x_common, mean_prob_true, marker='.', label='Mean calibration')
+    # plt.plot([0, 1], [0, 1], linestyle='--', label='Perfect calibration')
+    # plt.xlabel('Predicted probability')
+    # plt.ylabel('True probability')
+    # plt.title('Mean Calibration curve across folds')
+    # plt.legend()
+    # plt.savefig(os.path.join(output_folder, 'mean_calibration_curve_primitive.png'))
+    # plt.close()
 
 
 if __name__ == '__main__':
