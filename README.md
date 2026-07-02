@@ -1,31 +1,47 @@
 # Lung Treatment response
 
-(TODO: ADD icon of publication)
+Machine learning model to investigate lung cancer response after SBRT (radiotherapy treatment). 
 
-(TODO: ADD publication title)
+We investigated the clinical and radiomics data regarding lung cancer response after SBRT for the following predictions: 
+- survival
+- local relapse
+- remote relapse
 
-Machine learning models to investigate lung cancer response after SBRT (radiotherapy treatment). 
+We also investigated feature removal, data-preprocessing and prediction timeframe. 
 
-We use clinical, dosimetrc and radiomics data to predict overal survival of patients with either primary or secondary lung tumors.
+Authors: Camille Invernizzi, Pierre-Louis Benveniste
 
-(TODO: ADD citation here)
+## 1. Instructions to install everything
 
-## Installation
-
-Create a new environment, activate it and install the requirements
+Create a new environment
 
 ```console
-conda create -n venv_lung_response python=3.10
+conda create -n venv_lung_response python=3.9
+```
+
+Activate it
+```console
 conda activate venv_lung_response
+```
+
+Then install all required libraries
+```console
 pip install -r requirements.txt
 ``` 
 
-## Code
+## 2. Code in this repository
 
 The code is divided in two folders: 
-- `data`: here we perform data preprocessing, dataset merging and dataset statistics.
-- `model_training`: here we perform model training and evaluation for OS on different data splits. 
+- data_preprocessing: here we investigate the data for data preprocessing, dataset merging, dataset statistics and feature elimination.
+- model training: here we investigate the training of model prediction for survival, local relapse and final relapse. 
 
-## How to use it?
+NB: the investigations are detailed in the issues. 
 
-After doing the steps in installation section (section 1) and downloading the model from the latest [release](https://github.com/plbenveniste/lung-treatment-response/releases), you can run an inference using the file [predict_OS_primitive.py](./predict_OS_primitive.py) or [predict_OS_secondary.py](./predict_OS_secondary.py).
+## 3. Performing a prediction
+
+After doing the steps in installation section (section 1) and downloading the model from the [release](https://github.com/plbenveniste/lung-treatment-response/releases), you can run an inference using the file [predict_3year_survival.py](./predict_3year_survival.py). 
+Use the following command: 
+
+```console
+python predict_3year_survival.py --model-path PATH/TO/MODEL --sex X --BMI X --score_charlson X --smoke_cessation X --dose_tot X --BED_10 X --MeanIntensity X --IntensitySkewness X --IntensityKurtosis X --AreaUnderCurveCIVH X --RootMeanSquareIntensity X --IntensityHistogramMean X --IntensityHistogramVariance X --NGTDM_Strength X
+```
